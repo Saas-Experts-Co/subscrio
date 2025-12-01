@@ -605,6 +605,7 @@ export class StripeIntegrationService {
     };
 
     // Build base checkout session params
+    // Note: Cannot specify both 'customer' and 'customer_email' - we always use 'customer' since we ensure customer exists
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
       customer: stripeCustomerId,
       mode: 'subscription',
@@ -616,7 +617,8 @@ export class StripeIntegrationService {
         metadata: subscriptionMetadata,
         ...(params.trialPeriodDays && { trial_period_days: params.trialPeriodDays })
       },
-      ...(params.customerEmail && { customer_email: params.customerEmail }),
+      // Do NOT set customer_email when customer is set - Stripe doesn't allow both
+      // If customer_email was provided, it was already used when creating/updating the Stripe customer
       ...(params.allowPromotionCodes !== undefined && { allow_promotion_codes: params.allowPromotionCodes }),
       ...(params.billingAddressCollection && { billing_address_collection: params.billingAddressCollection }),
       ...(params.paymentMethodTypes && { payment_method_types: params.paymentMethodTypes }),
@@ -636,4 +638,5 @@ export class StripeIntegrationService {
       sessionId: session.id
     };
   }
+
 }
