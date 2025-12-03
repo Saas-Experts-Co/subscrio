@@ -87,7 +87,14 @@ export class StripeIntegrationService {
     // First check if subscription already linked by Stripe ID
     const existingByStripeId = await this.subscriptionRepository.findByStripeId(stripeSubscription.id);
     if (existingByStripeId) {
-      this.applyStripeSubscriptionFields(existingByStripeId, customer.id!, plan.id!, billingCycle.id!, stripeSubscription);
+      this.applyStripeSubscriptionFields(
+        existingByStripeId, 
+        customer.id!, 
+        plan.id!, 
+        billingCycle.id!, 
+        stripeSubscription,
+        billingCycle.props.externalProductId!
+      );
       await this.subscriptionRepository.save(existingByStripeId);
       return;
     }
@@ -100,7 +107,14 @@ export class StripeIntegrationService {
 
     if (existingByMetadata) {
       // Link existing subscription to Stripe
-      this.applyStripeSubscriptionFields(existingByMetadata, customer.id!, plan.id!, billingCycle.id!, stripeSubscription);
+      this.applyStripeSubscriptionFields(
+        existingByMetadata, 
+        customer.id!, 
+        plan.id!, 
+        billingCycle.id!, 
+        stripeSubscription,
+        billingCycle.props.externalProductId!
+      );
       await this.subscriptionRepository.save(existingByMetadata);
       return;
     }
@@ -111,10 +125,23 @@ export class StripeIntegrationService {
       generateKey('sub');
 
     const activationDate = new Date(stripeSubscription.created * 1000);
-    const currentPeriodStart = this.toDateOrDefault(stripeSubscription.current_period_start, activationDate);
-    const currentPeriodEnd = this.toDateOrUndefined(stripeSubscription.current_period_end) ??
+    
+    // Get period dates from matching subscription item
+    const { periodStart, periodEnd } = this.getPeriodDatesFromStripeSubscription(
+      stripeSubscription,
+      billingCycle.props.externalProductId!
+    );
+    
+    const currentPeriodStart = this.toDateOrDefault(periodStart, activationDate);
+    const currentPeriodEnd = this.toDateOrUndefined(periodEnd) ??
       billingCycle.calculateNextPeriodEnd(currentPeriodStart) ??
       undefined;
+
+    // Merge Stripe metadata with schedule ID
+    const metadata = this.mergeScheduleIntoMetadata(
+      stripeSubscription.metadata,
+      stripeSubscription.schedule
+    );
 
     const subscription = new Subscription({
       key: subscriptionKey,
@@ -131,7 +158,7 @@ export class StripeIntegrationService {
       currentPeriodEnd,
       stripeSubscriptionId: stripeSubscription.id,
       featureOverrides: [],
-      metadata: stripeSubscription.metadata ? { ...stripeSubscription.metadata } : undefined,
+      metadata,
       createdAt: now(),
       updatedAt: now()
     });
@@ -157,7 +184,14 @@ export class StripeIntegrationService {
     );
 
     const { billingCycle, plan } = await this.resolvePlanFromSubscription(stripeSubscription);
-    this.applyStripeSubscriptionFields(existing, customer.id!, plan.id!, billingCycle.id!, stripeSubscription);
+    this.applyStripeSubscriptionFields(
+      existing, 
+      customer.id!, 
+      plan.id!, 
+      billingCycle.id!, 
+      stripeSubscription,
+      billingCycle.props.externalProductId!
+    );
     await this.subscriptionRepository.save(existing);
   }
 
@@ -189,10 +223,27 @@ export class StripeIntegrationService {
       return; // Subscription not found
     }
 
-    const period = stripeInvoice.lines?.data?.[0]?.period;
+    // Get the subscription's billing cycle to find matching line item
+    const billingCycle = await this.billingCycleRepository.findById(subscription.props.billingCycleId);
+    if (!billingCycle || !billingCycle.props.externalProductId) {
+      return; // Can't match without externalProductId
+    }
+
+    // Find the invoice line item that matches this billing cycle's Stripe price ID
+    const matchingLineItem = stripeInvoice.lines?.data?.find(
+      line => line.price?.id === billingCycle.props.externalProductId
+    );
+
+    const period = matchingLineItem?.period ?? stripeInvoice.lines?.data?.[0]?.period;
     if (period) {
-      subscription.props.currentPeriodStart = this.toDateOrDefault(period.start, subscription.props.currentPeriodStart ?? now());
-      subscription.props.currentPeriodEnd = this.toDateOrUndefined(period.end);
+      subscription.props.currentPeriodStart = this.toDateOrDefault(
+        period.start, 
+        subscription.props.currentPeriodStart ?? now()
+      );
+      // Preserve existing value if period.end is not provided
+      subscription.props.currentPeriodEnd = period.end !== undefined && period.end !== null
+        ? new Date(period.end * 1000)
+        : subscription.props.currentPeriodEnd;
     }
 
     subscription.props.updatedAt = now();
@@ -346,24 +397,58 @@ export class StripeIntegrationService {
     return { billingCycle, plan };
   }
 
+  /**
+   * Find the subscription item that matches the billing cycle's Stripe price ID
+   * and extract period dates from it
+   */
+  private getPeriodDatesFromStripeSubscription(
+    stripeSubscription: Stripe.Subscription,
+    billingCycleExternalProductId: string
+  ): { periodStart?: number; periodEnd?: number } {
+    // Find the subscription item that matches this billing cycle's Stripe price ID
+    const matchingItem = stripeSubscription.items?.data?.find(
+      item => item.price?.id === billingCycleExternalProductId
+    );
+    
+    // Get period dates from matching subscription item, or fall back to subscription level
+    // Note: current_period_start/end exist on SubscriptionItem in API responses but may not be in TypeScript types
+    const itemPeriodStart = matchingItem ? (matchingItem as unknown as { current_period_start?: number }).current_period_start : undefined;
+    const itemPeriodEnd = matchingItem ? (matchingItem as unknown as { current_period_end?: number }).current_period_end : undefined;
+    
+    return {
+      periodStart: itemPeriodStart ?? stripeSubscription.current_period_start,
+      periodEnd: itemPeriodEnd ?? stripeSubscription.current_period_end
+    };
+  }
+
   private applyStripeSubscriptionFields(
     subscription: Subscription,
     customerId: number,
     planId: number,
     billingCycleId: number,
-    stripeSubscription: Stripe.Subscription
+    stripeSubscription: Stripe.Subscription,
+    billingCycleExternalProductId: string
   ) {
     subscription.props.customerId = customerId;
     subscription.props.planId = planId;
     subscription.props.billingCycleId = billingCycleId;
     subscription.props.activationDate = subscription.props.activationDate ?? new Date(stripeSubscription.created * 1000);
+    
+    // Get period dates from matching subscription item
+    const { periodStart, periodEnd } = this.getPeriodDatesFromStripeSubscription(
+      stripeSubscription,
+      billingCycleExternalProductId
+    );
+    
     subscription.props.currentPeriodStart = this.toDateOrDefault(
-      stripeSubscription.current_period_start,
+      periodStart,
       subscription.props.currentPeriodStart ?? now()
     );
-    subscription.props.currentPeriodEnd = this.toDateOrUndefined(
-      stripeSubscription.current_period_end
-    );
+    
+    // Preserve existing value if Stripe doesn't provide one
+    subscription.props.currentPeriodEnd = periodEnd !== undefined && periodEnd !== null
+      ? new Date(periodEnd * 1000)
+      : subscription.props.currentPeriodEnd;
     subscription.props.trialEndDate = this.toDateOrUndefined(stripeSubscription.trial_end);
     subscription.props.cancellationDate = stripeSubscription.canceled_at
       ? new Date(stripeSubscription.canceled_at * 1000)
@@ -371,7 +456,11 @@ export class StripeIntegrationService {
         ? subscription.props.cancellationDate
         : undefined;
     subscription.props.stripeSubscriptionId = stripeSubscription.id;
-    subscription.props.metadata = stripeSubscription.metadata ? { ...stripeSubscription.metadata } : subscription.props.metadata;
+    subscription.props.metadata = this.mergeScheduleIntoMetadata(
+      stripeSubscription.metadata,
+      stripeSubscription.schedule,
+      subscription.props.metadata
+    );
     subscription.props.status = this.mapStripeStatus(stripeSubscription.status);
     subscription.props.updatedAt = now();
   }
@@ -410,6 +499,45 @@ export class StripeIntegrationService {
     }
 
     return new Date(timestamp * 1000);
+  }
+
+  /**
+   * Merge Stripe schedule ID into subscription metadata
+   * If schedule is present, adds it to metadata as 'stripeScheduleId'
+   * If schedule is null/undefined, removes it from metadata
+   */
+  private mergeScheduleIntoMetadata(
+    stripeMetadata: Stripe.Metadata | null | undefined,
+    schedule: string | Stripe.SubscriptionSchedule | null | undefined,
+    existingMetadata?: Record<string, unknown>
+  ): Record<string, unknown> | undefined {
+    // Merge existing metadata with Stripe metadata (Stripe metadata takes precedence)
+    const merged: Record<string, unknown> = existingMetadata 
+      ? { ...existingMetadata }
+      : {};
+
+    // Overlay Stripe metadata on top
+    if (stripeMetadata) {
+      Object.assign(merged, stripeMetadata);
+    }
+
+    // Extract schedule ID (could be string or object)
+    const scheduleId = typeof schedule === 'string' 
+      ? schedule 
+      : schedule?.id 
+        ? schedule.id 
+        : null;
+
+    // Add or remove schedule ID from metadata
+    if (scheduleId) {
+      merged.stripeScheduleId = scheduleId;
+    } else {
+      // Remove schedule ID if it exists
+      delete merged.stripeScheduleId;
+    }
+
+    // Return undefined if metadata is empty, otherwise return the merged object
+    return Object.keys(merged).length > 0 ? merged : undefined;
   }
 
   private async handleCustomerUpsert(
