@@ -8,49 +8,6 @@ namespace Subscrio.Core.Application.Services;
 // The service structure is complete, but it will compile once Subscrio is available.
 // For now, using a placeholder interface that matches the expected Subscrio API.
 
-/// <summary>
-/// Placeholder interface for Subscrio - will be replaced by actual Subscrio class in Phase 4
-/// </summary>
-public interface ISubscrioApi
-{
-    // Product management
-    Task<ProductDto> CreateProductAsync(CreateProductDto dto);
-    Task<ProductDto> UpdateProductAsync(string key, UpdateProductDto dto);
-    Task<ProductDto?> GetProductAsync(string key);
-    Task<IReadOnlyList<ProductDto>> ListProductsAsync(ProductFilterDto? filters = null);
-    Task ArchiveProductAsync(string key);
-    Task UnarchiveProductAsync(string key);
-    Task AssociateFeatureAsync(string productKey, string featureKey);
-    Task DissociateFeatureAsync(string productKey, string featureKey);
-
-    // Feature management
-    Task<FeatureDto> CreateFeatureAsync(CreateFeatureDto dto);
-    Task<FeatureDto> UpdateFeatureAsync(string key, UpdateFeatureDto dto);
-    Task<FeatureDto?> GetFeatureAsync(string key);
-    Task<IReadOnlyList<FeatureDto>> ListFeaturesAsync(FeatureFilterDto? filters = null);
-    Task ArchiveFeatureAsync(string key);
-    Task UnarchiveFeatureAsync(string key);
-    Task<IReadOnlyList<FeatureDto>> GetFeaturesByProductAsync(string productKey);
-
-    // Plan management
-    Task<PlanDto> CreatePlanAsync(CreatePlanDto dto);
-    Task<PlanDto> UpdatePlanAsync(string planKey, UpdatePlanDto dto);
-    Task<PlanDto?> GetPlanAsync(string planKey);
-    Task<IReadOnlyList<PlanDto>> ListPlansAsync(PlanFilterDto? filters = null);
-    Task ArchivePlanAsync(string planKey);
-    Task UnarchivePlanAsync(string planKey);
-    Task SetFeatureValueAsync(string planKey, string featureKey, string value);
-    Task RemoveFeatureValueAsync(string planKey, string featureKey);
-    Task<IReadOnlyList<PlanFeatureDto>> GetPlanFeaturesAsync(string planKey);
-
-    // Billing cycle management
-    Task<BillingCycleDto> CreateBillingCycleAsync(CreateBillingCycleDto dto);
-    Task<BillingCycleDto> UpdateBillingCycleAsync(string key, UpdateBillingCycleDto dto);
-    Task<BillingCycleDto?> GetBillingCycleAsync(string key);
-    Task<IReadOnlyList<BillingCycleDto>> ListBillingCyclesAsync(BillingCycleFilterDto? filters = null);
-    Task ArchiveBillingCycleAsync(string key);
-    Task UnarchiveBillingCycleAsync(string key);
-}
 
 /// <summary>
 /// Deep equality check for objects (for metadata comparison)
@@ -151,15 +108,13 @@ internal static class ChangeDetectionHelper
 /// Configuration Sync Service
 /// Syncs configuration from JSON files or programmatic DTOs to the database
 /// Uses public Subscrio API methods to ensure all business logic is reused
-/// 
-/// NOTE: This service will be updated in Phase 4 to use the actual Subscrio class.
-/// For now, it uses ISubscrioApi interface which matches the expected API.
+/// Equivalent to TypeScript ConfigSyncService
 /// </summary>
 public class ConfigSyncService
 {
-    private readonly ISubscrioApi _subscrio; // Use public API methods
+    private readonly Subscrio _subscrio; // Use public API methods
 
-    public ConfigSyncService(ISubscrioApi subscrio)
+    public ConfigSyncService(Subscrio subscrio)
     {
         _subscrio = subscrio;
     }
@@ -222,10 +177,10 @@ public class ConfigSyncService
 
         // Phase 2: Load Current State
         // Use maximum allowed limit to get as many entities as possible
-        var existingProducts = await _subscrio.ListProductsAsync(new ProductFilterDto { Limit = 100, Offset = 0 });
-        var existingFeatures = await _subscrio.ListFeaturesAsync(new FeatureFilterDto { Limit = 100, Offset = 0 });
-        var existingPlans = await _subscrio.ListPlansAsync(new PlanFilterDto { Limit = 100, Offset = 0 });
-        var existingBillingCycles = await _subscrio.ListBillingCyclesAsync(new BillingCycleFilterDto { Limit = 100, Offset = 0 });
+        var existingProducts = await _subscrio.Products.ListProductsAsync(new ProductFilterDto { Limit = 100, Offset = 0 });
+        var existingFeatures = await _subscrio.Features.ListFeaturesAsync(new FeatureFilterDto { Limit = 100, Offset = 0 });
+        var existingPlans = await _subscrio.Plans.ListPlansAsync(new PlanFilterDto { Limit = 100, Offset = 0 });
+        var existingBillingCycles = await _subscrio.BillingCycles.ListBillingCyclesAsync(new BillingCycleFilterDto { Limit = 100, Offset = 0 });
 
         // Create lookup maps by key
         var productsByKey = existingProducts.ToDictionary(p => p.Key);
@@ -280,7 +235,7 @@ public class ConfigSyncService
                         Metadata = featureConfig.Metadata
                     };
 
-                    await _subscrio.CreateFeatureAsync(createDto);
+                    await _subscrio.Features.CreateFeatureAsync(createDto);
                     report = report with
                     {
                         Created = report.Created with { Features = report.Created.Features + 1 }
@@ -289,7 +244,7 @@ public class ConfigSyncService
                     // Archive if needed
                     if (featureConfig.Archived == true)
                     {
-                        await _subscrio.ArchiveFeatureAsync(featureConfig.Key);
+                        await _subscrio.Features.ArchiveFeatureAsync(featureConfig.Key);
                         report = report with
                         {
                             Archived = report.Archived with { Features = report.Archived.Features + 1 }
@@ -314,7 +269,7 @@ public class ConfigSyncService
                             Metadata = featureConfig.Metadata
                         };
 
-                        await _subscrio.UpdateFeatureAsync(featureConfig.Key, updateDto);
+                        await _subscrio.Features.UpdateFeatureAsync(featureConfig.Key, updateDto);
                         report = report with
                         {
                             Updated = report.Updated with { Features = report.Updated.Features + 1 }
@@ -325,7 +280,7 @@ public class ConfigSyncService
                     var isArchived = existing.Status == "archived";
                     if (featureConfig.Archived == true && !isArchived)
                     {
-                        await _subscrio.ArchiveFeatureAsync(featureConfig.Key);
+                        await _subscrio.Features.ArchiveFeatureAsync(featureConfig.Key);
                         report = report with
                         {
                             Archived = report.Archived with { Features = report.Archived.Features + 1 }
@@ -333,7 +288,7 @@ public class ConfigSyncService
                     }
                     else if (featureConfig.Archived == false && isArchived)
                     {
-                        await _subscrio.UnarchiveFeatureAsync(featureConfig.Key);
+                        await _subscrio.Features.UnarchiveFeatureAsync(featureConfig.Key);
                         report = report with
                         {
                             Unarchived = report.Unarchived with { Features = report.Unarchived.Features + 1 }
