@@ -1,1 +1,4 @@
 /internal
+
+# Test configuration overrides (may contain sensitive connection strings)
+core.dotnet/tests/appsettings.Development.json

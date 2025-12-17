@@ -1,0 +1,172 @@
+using Subscrio.Core.Application.Repositories;
+using Subscrio.Core.Application.Services;
+using Subscrio.Core.Application.Validators;
+using Subscrio.Core.Config;
+using Subscrio.Core.Infrastructure.Database;
+using Subscrio.Core.Infrastructure.Repositories;
+
+namespace Subscrio.Core;
+
+/// <summary>
+/// Main Subscrio class - entry point for the library
+/// </summary>
+public class Subscrio : IDisposable
+{
+    private readonly SubscrioDbContext _db;
+    private readonly SchemaInstaller _installer;
+
+    // Repositories (private)
+    private readonly IProductRepository _productRepo;
+    private readonly IFeatureRepository _featureRepo;
+    private readonly IPlanRepository _planRepo;
+    private readonly ICustomerRepository _customerRepo;
+    private readonly ISubscriptionRepository _subscriptionRepo;
+    private readonly IBillingCycleRepository _billingCycleRepo;
+
+    // Public services
+    public ProductManagementService Products { get; }
+    public FeatureManagementService Features { get; }
+    public PlanManagementService Plans { get; }
+    public CustomerManagementService Customers { get; }
+    public SubscriptionManagementService Subscriptions { get; }
+    public BillingCycleManagementService BillingCycles { get; }
+    public FeatureCheckerService FeatureChecker { get; }
+    public StripeIntegrationService Stripe { get; }
+    public ConfigSyncService ConfigSync { get; }
+
+    public Subscrio(SubscrioConfig config)
+    {
+        // Initialize database
+        _db = DatabaseInitializer.InitializeDatabase(config.Database);
+        _installer = new SchemaInstaller(_db);
+
+        // Initialize repositories
+        _productRepo = new EfProductRepository(_db);
+        _featureRepo = new EfFeatureRepository(_db);
+        _planRepo = new EfPlanRepository(_db);
+        _customerRepo = new EfCustomerRepository(_db);
+        _subscriptionRepo = new EfSubscriptionRepository(_db);
+        _billingCycleRepo = new EfBillingCycleRepository(_db);
+
+        // Initialize application services
+        Products = new ProductManagementService(
+            _productRepo,
+            _featureRepo,
+            new CreateProductDtoValidator(),
+            new UpdateProductDtoValidator(),
+            new ProductFilterDtoValidator()
+        );
+        Features = new FeatureManagementService(
+            _featureRepo,
+            _productRepo,
+            new CreateFeatureDtoValidator(),
+            new UpdateFeatureDtoValidator(),
+            new FeatureFilterDtoValidator()
+        );
+        Plans = new PlanManagementService(
+            _planRepo,
+            _productRepo,
+            _featureRepo,
+            _billingCycleRepo,
+            _subscriptionRepo,
+            new CreatePlanDtoValidator(),
+            new UpdatePlanDtoValidator(),
+            new PlanFilterDtoValidator()
+        );
+        Customers = new CustomerManagementService(
+            _customerRepo,
+            new CreateCustomerDtoValidator(),
+            new UpdateCustomerDtoValidator(),
+            new CustomerFilterDtoValidator()
+        );
+        Subscriptions = new SubscriptionManagementService(
+            _subscriptionRepo,
+            _customerRepo,
+            _planRepo,
+            _billingCycleRepo,
+            _featureRepo,
+            _productRepo,
+            new CreateSubscriptionDtoValidator(),
+            new UpdateSubscriptionDtoValidator(),
+            new SubscriptionFilterDtoValidator(),
+            new DetailedSubscriptionFilterDtoValidator()
+        );
+        BillingCycles = new BillingCycleManagementService(
+            _billingCycleRepo,
+            _planRepo,
+            _productRepo,
+            _subscriptionRepo,
+            new CreateBillingCycleDtoValidator(),
+            new UpdateBillingCycleDtoValidator(),
+            new BillingCycleFilterDtoValidator()
+        );
+        FeatureChecker = new FeatureCheckerService(
+            _subscriptionRepo,
+            _planRepo,
+            _featureRepo,
+            _customerRepo,
+            _productRepo
+        );
+        Stripe = new StripeIntegrationService(
+            _subscriptionRepo,
+            _customerRepo,
+            _planRepo,
+            _billingCycleRepo,
+            config.Stripe?.SecretKey
+        );
+        ConfigSync = new ConfigSyncService(
+            Products,
+            Features,
+            Plans,
+            BillingCycles
+        );
+    }
+
+    /// <summary>
+    /// Install database schema
+    /// </summary>
+    public async Task InstallSchemaAsync(string? adminPassphrase = null)
+    {
+        await _installer.InstallAsync(adminPassphrase);
+    }
+
+    /// <summary>
+    /// Verify schema installation
+    /// Returns the schema version if installed, null otherwise
+    /// </summary>
+    public async Task<string?> VerifySchemaAsync()
+    {
+        return await _installer.VerifyAsync();
+    }
+
+    /// <summary>
+    /// Run pending database migrations
+    /// 
+    /// Migrations are tracked via schema_version in system_config.
+    /// This method runs only pending migrations and updates the version.
+    /// 
+    /// </summary>
+    /// <returns>Number of migrations applied</returns>
+    public async Task<int> MigrateAsync()
+    {
+        return await _installer.MigrateAsync();
+    }
+
+    /// <summary>
+    /// Drop all database tables (WARNING: Destructive!)
+    /// </summary>
+    public async Task DropSchemaAsync()
+    {
+        await _installer.DropSchemaAsync();
+    }
+
+    /// <summary>
+    /// Close database connections
+    /// </summary>
+    public void Dispose()
+    {
+        _db?.Dispose();
+        GC.SuppressFinalize(this);
+    }
+}
+
