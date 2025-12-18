@@ -15,7 +15,7 @@ public class SchemaInstaller
     }
 
     /// <summary>
-    /// Install database schema using EF Core migrations
+    /// Install database schema using EF Core EnsureCreated
     /// </summary>
     public async Task InstallAsync(string? adminPassphrase = null)
     {
@@ -35,9 +35,6 @@ public class SchemaInstaller
                     // Schema doesn't exist, create it
                     await _db.Database.EnsureCreatedAsync();
                 }
-
-                // Run any pending migrations
-                await _db.Database.MigrateAsync();
 
                 // Create the subscription status view
                 await CreateSubscriptionStatusViewAsync();

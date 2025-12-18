@@ -14,8 +14,25 @@ public class TestContext
 
 public static class TestDatabase
 {
-    private const string TestDbName = "subscrio_test";
+    // Include framework version in database name to avoid conflicts when running multiple frameworks in parallel
+    // Format: subscrio_test_net80, subscrio_test_net90, subscrio_test_net100
+    private static readonly string TestDbName = GetFrameworkSpecificDbName();
     private static IConfiguration? _configuration;
+
+    private static string GetFrameworkSpecificDbName()
+    {
+        // Extract framework version from RuntimeInformation (e.g., ".NET 8.0.0" -> "net80")
+        var framework = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription;
+        var match = System.Text.RegularExpressions.Regex.Match(framework, @"\.NET (\d+)\.(\d+)");
+        if (match.Success)
+        {
+            var major = match.Groups[1].Value;
+            var minor = match.Groups[2].Value;
+            return $"subscrio_test_net{major}{minor}";
+        }
+        // Fallback to process ID if framework version can't be determined
+        return $"subscrio_test_{System.Diagnostics.Process.GetCurrentProcess().Id}";
+    }
 
     /// <summary>
     /// Get configuration from appsettings.json or environment variables
@@ -81,7 +98,8 @@ public static class TestDatabase
 
     /// <summary>
     /// Setup a fresh test database
-    /// Uses fixed name: subscrio_test
+    /// Uses framework-specific name: subscrio_test_net80, subscrio_test_net90, etc.
+    /// This allows multiple .NET versions to run tests in parallel without conflicts.
     /// </summary>
     public static async Task<TestContext> SetupTestDatabaseAsync()
     {

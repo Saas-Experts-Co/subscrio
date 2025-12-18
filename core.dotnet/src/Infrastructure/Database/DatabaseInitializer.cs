@@ -1,20 +1,33 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Subscrio.Core.Config;
 using Subscrio.Core.Domain.ValueObjects;
 
 namespace Subscrio.Core.Infrastructure.Database;
 
+public class DatabaseInitializerResult
+{
+    public required SubscrioDbContext DbContext { get; init; }
+    public NpgsqlDataSource? DataSource { get; init; }
+}
+
 public static class DatabaseInitializer
 {
-    public static SubscrioDbContext InitializeDatabase(DatabaseConfig config)
+    public static DatabaseInitializerResult InitializeDatabase(DatabaseConfig config)
     {
         var optionsBuilder = new DbContextOptionsBuilder<SubscrioDbContext>();
+        NpgsqlDataSource? dataSource = null;
 
         switch (config.DatabaseType)
         {
             case DatabaseType.PostgreSQL:
-                optionsBuilder.UseNpgsql(config.ConnectionString, options =>
+                // Create NpgsqlDataSource with dynamic JSON enabled for Dictionary<string, object?> serialization
+                var dataSourceBuilder = new NpgsqlDataSourceBuilder(config.ConnectionString);
+                dataSourceBuilder.EnableDynamicJson();
+                dataSource = dataSourceBuilder.Build();
+                
+                optionsBuilder.UseNpgsql(dataSource, options =>
                 {
                     if (config.Ssl)
                     {
@@ -34,7 +47,11 @@ public static class DatabaseInitializer
                 throw new ArgumentException($"Unsupported database type: {config.DatabaseType}");
         }
 
-        return new SubscrioDbContext(optionsBuilder.Options);
+        return new DatabaseInitializerResult
+        {
+            DbContext = new SubscrioDbContext(optionsBuilder.Options),
+            DataSource = dataSource
+        };
     }
 }
 

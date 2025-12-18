@@ -177,7 +177,7 @@ public class SubscriptionsTests : IClassFixture<TestDatabaseFixture>
             ));
 
             var updated = await _subscrio.Subscriptions.UpdateSubscriptionAsync(subscription.Key, new UpdateSubscriptionDto(
-                Metadata: new Dictionary<string, object> { ["updated"] = true }
+                Metadata: new Dictionary<string, object?> { ["updated"] = true }
             ));
 
             updated.Metadata.Should().ContainKey("updated");

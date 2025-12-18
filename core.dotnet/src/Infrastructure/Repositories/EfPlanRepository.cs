@@ -3,6 +3,7 @@ using Subscrio.Core.Application.Repositories;
 using Subscrio.Core.Application.DTOs;
 using Subscrio.Core.Infrastructure.Database;
 using Subscrio.Core.Application.Errors;
+using Subscrio.Core.Infrastructure.Utils;
 
 namespace Subscrio.Core.Infrastructure.Repositories;
 
@@ -165,6 +166,59 @@ public class EfPlanRepository : IPlanRepository
         if (billingCycle == null) return false;
 
         return await _db.Plans.AnyAsync(p => p.OnExpireTransitionToBillingCycleId == billingCycle.Id);
+    }
+
+    public async Task SetFeatureValueAsync(long planId, long featureId, string value)
+    {
+        var existing = await _db.PlanFeatures
+            .FirstOrDefaultAsync(pf => pf.PlanId == planId && pf.FeatureId == featureId);
+        
+        if (existing != null)
+        {
+            // Update existing
+            existing.Value = value;
+            existing.UpdatedAt = DateHelper.Now();
+        }
+        else
+        {
+            // Create new
+            _db.PlanFeatures.Add(new PlanFeatureRecord
+            {
+                PlanId = planId,
+                FeatureId = featureId,
+                Value = value,
+                CreatedAt = DateHelper.Now(),
+                UpdatedAt = DateHelper.Now()
+            });
+        }
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task RemoveFeatureValueAsync(long planId, long featureId)
+    {
+        var record = await _db.PlanFeatures
+            .FirstOrDefaultAsync(pf => pf.PlanId == planId && pf.FeatureId == featureId);
+        
+        if (record != null)
+        {
+            _db.PlanFeatures.Remove(record);
+            await _db.SaveChangesAsync();
+        }
+    }
+
+    public async Task<string?> GetFeatureValueAsync(long planId, long featureId)
+    {
+        var record = await _db.PlanFeatures
+            .FirstOrDefaultAsync(pf => pf.PlanId == planId && pf.FeatureId == featureId);
+        
+        return record?.Value;
+    }
+
+    public async Task<List<PlanFeatureRecord>> GetFeatureValuesAsync(long planId)
+    {
+        return await _db.PlanFeatures
+            .Where(pf => pf.PlanId == planId)
+            .ToListAsync();
     }
 
 }

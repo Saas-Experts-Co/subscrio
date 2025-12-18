@@ -64,6 +64,18 @@ public class PlanManagementService
         return (product.Key, onExpireTransitionToBillingCycleKey);
     }
 
+    private async Task<List<PlanFeatureValue>> LoadPlanFeatureValuesAsync(long planId)
+    {
+        var featureValueRecords = await _planRepository.GetFeatureValuesAsync(planId);
+        return featureValueRecords.Select(fvr => new PlanFeatureValue
+        {
+            FeatureId = fvr.FeatureId,
+            Value = fvr.Value,
+            CreatedAt = fvr.CreatedAt,
+            UpdatedAt = fvr.UpdatedAt
+        }).ToList();
+    }
+
     public async Task<PlanDto> CreatePlanAsync(CreatePlanDto dto)
     {
         var validationResult = await _createValidator.ValidateAsync(dto);
@@ -119,10 +131,11 @@ public class PlanManagementService
         // Save record
         var savedRecord = await _planRepository.SaveAsync(record);
 
-        // TODO: Handle feature values separately if needed
+        // Load feature values (will be empty for new plan)
+        var featureValues = await LoadPlanFeatureValuesAsync(savedRecord.Id);
 
         var keys = await ResolvePlanKeysAsync(savedRecord);
-        var plan = PlanMapper.ToDomain(savedRecord, keys.ProductKey, keys.OnExpireTransitionToBillingCycleKey, new List<PlanFeatureValue>());
+        var plan = PlanMapper.ToDomain(savedRecord, keys.ProductKey, keys.OnExpireTransitionToBillingCycleKey, featureValues);
         return PlanMapper.ToDto(plan, keys.ProductKey, keys.OnExpireTransitionToBillingCycleKey);
     }
 
@@ -143,9 +156,12 @@ public class PlanManagementService
             throw new NotFoundException($"Plan with key '{planKey}' not found");
         }
 
+        // Load feature values before converting to domain
+        var featureValues = await LoadPlanFeatureValuesAsync(record.Id);
+        
         // Convert to domain entity for business rule validation if needed
         var keys = await ResolvePlanKeysAsync(record);
-        var plan = PlanMapper.ToDomain(record, keys.ProductKey, keys.OnExpireTransitionToBillingCycleKey, new List<PlanFeatureValue>());
+        var plan = PlanMapper.ToDomain(record, keys.ProductKey, keys.OnExpireTransitionToBillingCycleKey, featureValues);
         
         // Update properties
         if (dto.DisplayName != null)
@@ -176,8 +192,11 @@ public class PlanManagementService
         }
         var savedRecord = await _planRepository.SaveAsync(record);
 
+        // Load feature values after update
+        var savedFeatureValues = await LoadPlanFeatureValuesAsync(savedRecord.Id);
+
         var savedKeys = await ResolvePlanKeysAsync(savedRecord);
-        var savedPlan = PlanMapper.ToDomain(savedRecord, savedKeys.ProductKey, savedKeys.OnExpireTransitionToBillingCycleKey, new List<PlanFeatureValue>());
+        var savedPlan = PlanMapper.ToDomain(savedRecord, savedKeys.ProductKey, savedKeys.OnExpireTransitionToBillingCycleKey, savedFeatureValues);
         return PlanMapper.ToDto(savedPlan, savedKeys.ProductKey, savedKeys.OnExpireTransitionToBillingCycleKey);
     }
 
@@ -189,8 +208,11 @@ public class PlanManagementService
             return null;
         }
 
+        // Load feature values
+        var featureValues = await LoadPlanFeatureValuesAsync(record.Id);
+
         var keys = await ResolvePlanKeysAsync(record);
-        var plan = PlanMapper.ToDomain(record, keys.ProductKey, keys.OnExpireTransitionToBillingCycleKey, new List<PlanFeatureValue>());
+        var plan = PlanMapper.ToDomain(record, keys.ProductKey, keys.OnExpireTransitionToBillingCycleKey, featureValues);
         return PlanMapper.ToDto(plan, keys.ProductKey, keys.OnExpireTransitionToBillingCycleKey);
     }
 
@@ -209,12 +231,22 @@ public class PlanManagementService
         // Filters are already validated and use productKey
         var plans = await _planRepository.FindAllAsync(filterDto);
 
+        // Batch load all plan feature values to avoid N+1 queries
+        var planIds = plans.Select(p => p.Id).ToList();
+        var allFeatureValues = new Dictionary<long, List<PlanFeatureValue>>();
+        foreach (var planId in planIds)
+        {
+            var featureValues = await LoadPlanFeatureValuesAsync(planId);
+            allFeatureValues[planId] = featureValues;
+        }
+
         // Map each plan with resolved keys
         var planDtos = new List<PlanDto>();
         foreach (var record in plans)
         {
             var keys = await ResolvePlanKeysAsync(record);
-            var plan = PlanMapper.ToDomain(record, keys.ProductKey, keys.OnExpireTransitionToBillingCycleKey, new List<PlanFeatureValue>());
+            var featureValues = allFeatureValues.GetValueOrDefault(record.Id, new List<PlanFeatureValue>());
+            var plan = PlanMapper.ToDomain(record, keys.ProductKey, keys.OnExpireTransitionToBillingCycleKey, featureValues);
             planDtos.Add(PlanMapper.ToDto(plan, keys.ProductKey, keys.OnExpireTransitionToBillingCycleKey));
         }
         return planDtos;
@@ -231,12 +263,22 @@ public class PlanManagementService
 
         var plans = await _planRepository.FindByProductAsync(productKey);
 
+        // Batch load all plan feature values to avoid N+1 queries
+        var planIds = plans.Select(p => p.Id).ToList();
+        var allFeatureValues = new Dictionary<long, List<PlanFeatureValue>>();
+        foreach (var planId in planIds)
+        {
+            var featureValues = await LoadPlanFeatureValuesAsync(planId);
+            allFeatureValues[planId] = featureValues;
+        }
+
         // Map each plan with resolved keys
         var planDtos = new List<PlanDto>();
         foreach (var record in plans)
         {
             var keys = await ResolvePlanKeysAsync(record);
-            var plan = PlanMapper.ToDomain(record, keys.ProductKey, keys.OnExpireTransitionToBillingCycleKey, new List<PlanFeatureValue>());
+            var featureValues = allFeatureValues.GetValueOrDefault(record.Id, new List<PlanFeatureValue>());
+            var plan = PlanMapper.ToDomain(record, keys.ProductKey, keys.OnExpireTransitionToBillingCycleKey, featureValues);
             planDtos.Add(PlanMapper.ToDto(plan, keys.ProductKey, keys.OnExpireTransitionToBillingCycleKey));
         }
         return planDtos;
@@ -278,9 +320,12 @@ public class PlanManagementService
             throw new NotFoundException($"Plan with key '{planKey}' not found");
         }
 
+        // Load feature values (not needed for validation, but for consistency)
+        var featureValues = await LoadPlanFeatureValuesAsync(record.Id);
+
         // Convert to domain entity for business rule validation
         var keys = await ResolvePlanKeysAsync(record);
-        var plan = PlanMapper.ToDomain(record, keys.ProductKey, keys.OnExpireTransitionToBillingCycleKey, new List<PlanFeatureValue>());
+        var plan = PlanMapper.ToDomain(record, keys.ProductKey, keys.OnExpireTransitionToBillingCycleKey, featureValues);
         if (!plan.CanDelete())
         {
             throw new DomainException(
@@ -328,15 +373,8 @@ public class PlanManagementService
         var feature = FeatureMapper.ToDomain(featureRecord);
         FeatureValueValidator.Validate(value, feature.Props.ValueType);
 
-        // TODO: Handle PlanFeatureRecord directly via repository or DbContext
-        // For now, convert to domain entity, set value, convert back
-        var keys = await ResolvePlanKeysAsync(planRecord);
-        var plan = PlanMapper.ToDomain(planRecord, keys.ProductKey, keys.OnExpireTransitionToBillingCycleKey, new List<PlanFeatureValue>());
-        plan.SetFeatureValue(featureRecord.Id, value);
-        
-        // TODO: Save feature values separately - need to update PlanFeatureRecord table
-        // This is a placeholder - feature values need special handling
-        throw new NotImplementedException("Feature value management needs to be implemented with PlanFeatureRecord");
+        // Save feature value via repository
+        await _planRepository.SetFeatureValueAsync(planRecord.Id, featureRecord.Id, value);
     }
 
     public async Task RemoveFeatureValueAsync(string planKey, string featureKey)
@@ -353,8 +391,8 @@ public class PlanManagementService
             throw new NotFoundException($"Feature with key '{featureKey}' not found");
         }
 
-        // TODO: Handle PlanFeatureRecord directly
-        throw new NotImplementedException("Feature value management needs to be implemented with PlanFeatureRecord");
+        // Remove feature value via repository
+        await _planRepository.RemoveFeatureValueAsync(planRecord.Id, featureRecord.Id);
     }
 
     public async Task<string?> GetFeatureValueAsync(string planKey, string featureKey)
@@ -371,8 +409,8 @@ public class PlanManagementService
             return null;
         }
 
-        // TODO: Load PlanFeatureRecord and return value
-        throw new NotImplementedException("Feature value retrieval needs to be implemented with PlanFeatureRecord");
+        // Get feature value via repository
+        return await _planRepository.GetFeatureValueAsync(planRecord.Id, featureRecord.Id);
     }
 
     public async Task<List<PlanFeatureDto>> GetPlanFeaturesAsync(string planKey)
@@ -383,8 +421,24 @@ public class PlanManagementService
             throw new NotFoundException($"Plan with key '{planKey}' not found");
         }
 
-        // TODO: Load PlanFeatureRecords and map to DTOs
-        throw new NotImplementedException("Plan features retrieval needs to be implemented with PlanFeatureRecord");
+        // Get all feature values for this plan
+        var featureValueRecords = await _planRepository.GetFeatureValuesAsync(planRecord.Id);
+        
+        // Convert to DTOs - need to resolve feature keys
+        var dtos = new List<PlanFeatureDto>();
+        foreach (var featureValueRecord in featureValueRecords)
+        {
+            var featureRecord = await _featureRepository.FindByIdAsync(featureValueRecord.FeatureId);
+            if (featureRecord != null)
+            {
+                dtos.Add(new PlanFeatureDto(
+                    FeatureKey: featureRecord.Key,
+                    Value: featureValueRecord.Value
+                ));
+            }
+        }
+        
+        return dtos;
     }
 }
 

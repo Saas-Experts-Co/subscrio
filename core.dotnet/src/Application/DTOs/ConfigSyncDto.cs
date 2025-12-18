@@ -17,7 +17,7 @@ public record PlanConfig(
     string? OnExpireTransitionToBillingCycleKey = null,
     Dictionary<string, string>? FeatureValues = null,
     List<BillingCycleConfig>? BillingCycles = null,
-    Dictionary<string, object>? Metadata = null,
+    Dictionary<string, object?>? Metadata = null,
     bool? Archived = null
 );
 
@@ -28,8 +28,8 @@ public record FeatureConfig(
     string ValueType = "toggle",
     string DefaultValue = "false",
     string? GroupName = null,
-    Dictionary<string, object>? Validator = null,
-    Dictionary<string, object>? Metadata = null,
+    Dictionary<string, object?>? Validator = null,
+    Dictionary<string, object?>? Metadata = null,
     bool? Archived = null
 );
 
@@ -37,7 +37,7 @@ public record ProductConfig(
     string Key,
     string DisplayName,
     string? Description = null,
-    Dictionary<string, object>? Metadata = null,
+    Dictionary<string, object?>? Metadata = null,
     bool? Archived = null,
     List<string>? Features = null,
     List<PlanConfig>? Plans = null

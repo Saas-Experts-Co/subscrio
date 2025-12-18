@@ -6,14 +6,14 @@ public record CreatePlanDto(
     string DisplayName,
     string? Description = null,
     string? OnExpireTransitionToBillingCycleKey = null,
-    Dictionary<string, object>? Metadata = null
+    Dictionary<string, object?>? Metadata = null
 );
 
 public record UpdatePlanDto(
     string? DisplayName = null,
     string? Description = null,
     string? OnExpireTransitionToBillingCycleKey = null,
-    Dictionary<string, object>? Metadata = null
+    Dictionary<string, object?>? Metadata = null
 );
 
 public record PlanDto(
@@ -23,7 +23,7 @@ public record PlanDto(
     string? Description,
     string Status,
     string? OnExpireTransitionToBillingCycleKey,
-    Dictionary<string, object>? Metadata,
+    Dictionary<string, object?>? Metadata,
     string CreatedAt,
     string UpdatedAt
 );

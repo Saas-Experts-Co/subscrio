@@ -5,14 +5,14 @@ public record CreateCustomerDto(
     string? DisplayName = null,
     string? Email = null,
     string? ExternalBillingId = null,
-    Dictionary<string, object>? Metadata = null
+    Dictionary<string, object?>? Metadata = null
 );
 
 public record UpdateCustomerDto(
     string? DisplayName = null,
     string? Email = null,
     string? ExternalBillingId = null,
-    Dictionary<string, object>? Metadata = null
+    Dictionary<string, object?>? Metadata = null
 );
 
 public record CustomerDto(
@@ -21,7 +21,7 @@ public record CustomerDto(
     string? Email,
     string? ExternalBillingId,
     string Status,
-    Dictionary<string, object>? Metadata,
+    Dictionary<string, object?>? Metadata,
     string CreatedAt,
     string UpdatedAt
 );

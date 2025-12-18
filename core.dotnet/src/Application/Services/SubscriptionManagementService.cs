@@ -304,9 +304,9 @@ public class SubscriptionManagementService
     /// Resolve filter keys to IDs for database querying
     /// Returns null if any required entity is not found (to indicate empty result)
     /// </summary>
-    private async Task<Dictionary<string, object>?> ResolveFilterKeysAsync(SubscriptionFilterDto filters)
+    private async Task<Dictionary<string, object?>?> ResolveFilterKeysAsync(SubscriptionFilterDto filters)
     {
-        var resolved = new Dictionary<string, object>();
+        var resolved = new Dictionary<string, object?>();
 
         // Resolve customerKey to customerId
         if (filters.CustomerKey != null)
@@ -377,9 +377,9 @@ public class SubscriptionManagementService
     /// Resolve filter keys to IDs for database querying (detailed filters)
     /// Returns null if any required entity is not found (to indicate empty result)
     /// </summary>
-    private async Task<Dictionary<string, object>?> ResolveDetailedFilterKeysAsync(DetailedSubscriptionFilterDto filters)
+    private async Task<Dictionary<string, object?>?> ResolveDetailedFilterKeysAsync(DetailedSubscriptionFilterDto filters)
     {
-        var resolved = new Dictionary<string, object>();
+        var resolved = new Dictionary<string, object?>();
 
         // Resolve customerKey to customerId
         if (filters.CustomerKey != null)

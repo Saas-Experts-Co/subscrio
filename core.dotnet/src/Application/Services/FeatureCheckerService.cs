@@ -69,11 +69,30 @@ public class FeatureCheckerService
             return defaultValue ?? default;
         }
 
+        // Load plan feature values
+        var featureValueRecords = await PlanRepository.GetFeatureValuesAsync(planRecord.Id);
+        var planFeatureValues = featureValueRecords.Select(fvr => new PlanFeatureValue
+        {
+            FeatureId = fvr.FeatureId,
+            Value = fvr.Value,
+            CreatedAt = fvr.CreatedAt,
+            UpdatedAt = fvr.UpdatedAt
+        }).ToList();
+
+        // Load subscription feature overrides
+        var overrideRecords = await SubscriptionRepository.GetFeatureOverridesAsync(subscriptionView.Id);
+        var featureOverrides = overrideRecords.Select(record => new FeatureOverride
+        {
+            FeatureId = record.FeatureId,
+            Value = record.Value,
+            Type = Enum.Parse<OverrideType>(record.OverrideType, ignoreCase: true),
+            CreatedAt = record.CreatedAt
+        }).ToList();
+
         // Convert to domain entities for resolver
         var feature = FeatureMapper.ToDomain(featureRecord);
-        // TODO: Load plan feature values and subscription overrides
-        var plan = PlanMapper.ToDomain(planRecord, "", null, new List<PlanFeatureValue>());
-        var subscription = SubscriptionMapper.ToDomain(subscriptionView, new List<FeatureOverride>());
+        var plan = PlanMapper.ToDomain(planRecord, "", null, planFeatureValues);
+        var subscription = SubscriptionMapper.ToDomain(subscriptionView, featureOverrides);
 
         // Resolve using hierarchy
         var value = _resolver.Resolve(feature, plan, subscription);
@@ -126,12 +145,32 @@ public class FeatureCheckerService
         // Get all features for the product
         var features = await FeatureRepository.FindByProductAsync(product.Id);
 
+        // Load plan feature values
+        var featureValueRecords = await PlanRepository.GetFeatureValuesAsync(planRecord.Id);
+        var planFeatureValues = featureValueRecords.Select(fvr => new PlanFeatureValue
+        {
+            FeatureId = fvr.FeatureId,
+            Value = fvr.Value,
+            CreatedAt = fvr.CreatedAt,
+            UpdatedAt = fvr.UpdatedAt
+        }).ToList();
+
+        // Load subscription feature overrides
+        var overrideRecords = await SubscriptionRepository.GetFeatureOverridesAsync(subscriptionView.Id);
+        var featureOverrides = overrideRecords.Select(record => new FeatureOverride
+        {
+            FeatureId = record.FeatureId,
+            Value = record.Value,
+            Type = Enum.Parse<OverrideType>(record.OverrideType, ignoreCase: true),
+            CreatedAt = record.CreatedAt
+        }).ToList();
+
         // Resolve features for this specific subscription
         var resolved = new Dictionary<string, string>();
 
         // Convert to domain entities
-        var plan = PlanMapper.ToDomain(planRecord, product.Key, null, new List<PlanFeatureValue>());
-        var subscription = SubscriptionMapper.ToDomain(subscriptionView, new List<FeatureOverride>());
+        var plan = PlanMapper.ToDomain(planRecord, product.Key, null, planFeatureValues);
+        var subscription = SubscriptionMapper.ToDomain(subscriptionView, featureOverrides);
 
         foreach (var featureRecord in features)
         {
@@ -194,6 +233,21 @@ public class FeatureCheckerService
         var plans = await PlanRepository.FindByIdsAsync(planIds);
         var planMap = plans.ToDictionary(p => p.Id, p => p);
 
+        // Batch load all plan feature values
+        var planFeatureValuesMap = new Dictionary<long, List<PlanFeatureValue>>();
+        foreach (var planId in planIds)
+        {
+            var featureValueRecords = await PlanRepository.GetFeatureValuesAsync(planId);
+            var featureValues = featureValueRecords.Select(fvr => new PlanFeatureValue
+            {
+                FeatureId = fvr.FeatureId,
+                Value = fvr.Value,
+                CreatedAt = fvr.CreatedAt,
+                UpdatedAt = fvr.UpdatedAt
+            }).ToList();
+            planFeatureValuesMap[planId] = featureValues;
+        }
+
         // Get product records for plans to check ProductId
         var productIds = plans.Select(p => p.ProductId).Distinct().ToList();
         var products = await ProductRepository.FindByIdsAsync(productIds);
@@ -242,14 +296,35 @@ public class FeatureCheckerService
             var planRecord = planMap[subscriptionView.PlanId];
             var productRecord = productMap[planRecord.ProductId];
             
-            // TODO: Load plan feature values and subscription overrides
-            var plan = PlanMapper.ToDomain(planRecord, productRecord.Key, null, new List<PlanFeatureValue>());
-            var subscription = SubscriptionMapper.ToDomain(subscriptionView, new List<FeatureOverride>());
+            // Load subscription feature overrides
+            var overrideRecords = await SubscriptionRepository.GetFeatureOverridesAsync(subscriptionView.Id);
+            var featureOverrides = overrideRecords.Select(record => new FeatureOverride
+            {
+                FeatureId = record.FeatureId,
+                Value = record.Value,
+                Type = Enum.Parse<OverrideType>(record.OverrideType, ignoreCase: true),
+                CreatedAt = record.CreatedAt
+            }).ToList();
+            
+            // Use batch-loaded plan feature values
+            var planFeatureValues = planFeatureValuesMap.GetValueOrDefault(planRecord.Id, new List<PlanFeatureValue>());
+            var plan = PlanMapper.ToDomain(planRecord, productRecord.Key, null, planFeatureValues);
+            var subscription = SubscriptionMapper.ToDomain(subscriptionView, featureOverrides);
             
             var value = _resolver.Resolve(featureDomain, plan, subscription);
 
-            // If this subscription has an override, use it immediately
-            // TODO: Check override properly
+            // If this subscription has an override for this feature, use it immediately
+            if (featureDomain.Id.HasValue)
+            {
+                var hasOverride = featureOverrides.Any(o => o.FeatureId == featureDomain.Id.Value);
+                if (hasOverride)
+                {
+                    resolvedValue = value;
+                    break; // Override found, stop checking
+                }
+            }
+            
+            // Otherwise, if plan has value and we don't have one yet
             if (resolvedValue == null)
             {
                 resolvedValue = value;
@@ -311,6 +386,21 @@ public class FeatureCheckerService
         var plans = await PlanRepository.FindByIdsAsync(planIds);
         var planMap = plans.ToDictionary(p => p.Id, p => p);
         
+        // Batch load all plan feature values
+        var planFeatureValuesMap = new Dictionary<long, List<PlanFeatureValue>>();
+        foreach (var planId in planIds)
+        {
+            var featureValueRecords = await PlanRepository.GetFeatureValuesAsync(planId);
+            var featureValues = featureValueRecords.Select(fvr => new PlanFeatureValue
+            {
+                FeatureId = fvr.FeatureId,
+                Value = fvr.Value,
+                CreatedAt = fvr.CreatedAt,
+                UpdatedAt = fvr.UpdatedAt
+            }).ToList();
+            planFeatureValuesMap[planId] = featureValues;
+        }
+        
         // Get product records for plans to check ProductId
         var productIds = plans.Select(p => p.ProductId).Distinct().ToList();
         var productRecords = await ProductRepository.FindByIdsAsync(productIds);
@@ -354,9 +444,25 @@ public class FeatureCheckerService
         foreach (var kvp in planMap)
         {
             var productRecord = productMap[kvp.Value.ProductId];
-            planDomains[kvp.Key] = PlanMapper.ToDomain(kvp.Value, productRecord.Key, null, new List<PlanFeatureValue>());
+            var planFeatureValues = planFeatureValuesMap.GetValueOrDefault(kvp.Key, new List<PlanFeatureValue>());
+            planDomains[kvp.Key] = PlanMapper.ToDomain(kvp.Value, productRecord.Key, null, planFeatureValues);
         }
-        var subscriptionDomains = productSubscriptions.Select(sv => SubscriptionMapper.ToDomain(sv, new List<FeatureOverride>())).ToList();
+        
+        // Load subscription feature overrides for all subscriptions
+        var subscriptionDomains = new List<Subscription>();
+        foreach (var subscriptionView in productSubscriptions)
+        {
+            var overrideRecords = await SubscriptionRepository.GetFeatureOverridesAsync(subscriptionView.Id);
+            var featureOverrides = overrideRecords.Select(record => new FeatureOverride
+            {
+                FeatureId = record.FeatureId,
+                Value = record.Value,
+                Type = Enum.Parse<OverrideType>(record.OverrideType, ignoreCase: true),
+                CreatedAt = record.CreatedAt
+            }).ToList();
+            
+            subscriptionDomains.Add(SubscriptionMapper.ToDomain(subscriptionView, featureOverrides));
+        }
         
         return _resolver.ResolveAll(featureDomains, planDomains, subscriptionDomains);
     }

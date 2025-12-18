@@ -11,7 +11,7 @@ public record CreateSubscriptionDto(
     DateTime? CurrentPeriodStart = null,
     DateTime? CurrentPeriodEnd = null,
     string? StripeSubscriptionId = null,
-    Dictionary<string, object>? Metadata = null
+    Dictionary<string, object?>? Metadata = null
 );
 
 public record UpdateSubscriptionDto(
@@ -22,7 +22,7 @@ public record UpdateSubscriptionDto(
     DateTime? CurrentPeriodStart = null,
     DateTime? CurrentPeriodEnd = null,
     string? StripeSubscriptionId = null,
-    Dictionary<string, object>? Metadata = null
+    Dictionary<string, object?>? Metadata = null
 );
 
 public record SubscriptionDto(
@@ -40,7 +40,7 @@ public record SubscriptionDto(
     string? CurrentPeriodStart,
     string? CurrentPeriodEnd,
     string? StripeSubscriptionId,
-    Dictionary<string, object>? Metadata,
+    Dictionary<string, object?>? Metadata,
     CustomerDto? Customer,
     string CreatedAt,
     string UpdatedAt

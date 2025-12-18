@@ -2,6 +2,15 @@
 
 A .NET implementation of the Subscrio subscription management library, providing comprehensive features for managing products, plans, features, customers, subscriptions, and billing cycles.
 
+## Supported .NET Versions
+
+This library supports the following .NET versions:
+- **.NET 8.0** (LTS - supported until November 2026)
+- **.NET 9.0**
+- **.NET 10.0**
+
+The library is multi-targeted, meaning a single NuGet package contains builds for all supported frameworks. The appropriate build will be automatically selected based on your project's target framework.
+
 ## Features
 
 - **Product Management** - Create and manage products with features

@@ -124,9 +124,9 @@ public class ConfigSyncService
                     var createDto = new CreateFeatureDto(
                         featureConfig.Key,
                         featureConfig.DisplayName,
-                        featureConfig.Description,
                         featureConfig.ValueType,
                         featureConfig.DefaultValue,
+                        featureConfig.Description,
                         featureConfig.GroupName,
                         featureConfig.Validator,
                         featureConfig.Metadata

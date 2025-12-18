@@ -7,8 +7,8 @@ public record CreateFeatureDto(
     string DefaultValue,
     string? Description = null,
     string? GroupName = null,
-    Dictionary<string, object>? Validator = null,
-    Dictionary<string, object>? Metadata = null
+    Dictionary<string, object?>? Validator = null,
+    Dictionary<string, object?>? Metadata = null
 );
 
 public record UpdateFeatureDto(
@@ -17,8 +17,8 @@ public record UpdateFeatureDto(
     string? ValueType = null,
     string? DefaultValue = null,
     string? GroupName = null,
-    Dictionary<string, object>? Validator = null,
-    Dictionary<string, object>? Metadata = null
+    Dictionary<string, object?>? Validator = null,
+    Dictionary<string, object?>? Metadata = null
 );
 
 public record FeatureDto(
@@ -29,8 +29,8 @@ public record FeatureDto(
     string DefaultValue,
     string? GroupName,
     string Status,
-    Dictionary<string, object>? Validator,
-    Dictionary<string, object>? Metadata,
+    Dictionary<string, object?>? Validator,
+    Dictionary<string, object?>? Metadata,
     string CreatedAt,
     string UpdatedAt
 );

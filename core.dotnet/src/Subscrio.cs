@@ -1,3 +1,4 @@
+using Npgsql;
 using Subscrio.Core.Application.Repositories;
 using Subscrio.Core.Application.Services;
 using Subscrio.Core.Application.Validators;
@@ -14,6 +15,7 @@ public class Subscrio : IDisposable
 {
     private readonly SubscrioDbContext _db;
     private readonly SchemaInstaller _installer;
+    private readonly Npgsql.NpgsqlDataSource? _dataSource;
 
     // Repositories (private)
     private readonly IProductRepository _productRepo;
@@ -37,7 +39,9 @@ public class Subscrio : IDisposable
     public Subscrio(SubscrioConfig config)
     {
         // Initialize database
-        _db = DatabaseInitializer.InitializeDatabase(config.Database);
+        var dbResult = DatabaseInitializer.InitializeDatabase(config.Database);
+        _db = dbResult.DbContext;
+        _dataSource = dbResult.DataSource;
         _installer = new SchemaInstaller(_db);
 
         // Initialize repositories
@@ -166,6 +170,7 @@ public class Subscrio : IDisposable
     public void Dispose()
     {
         _db?.Dispose();
+        _dataSource?.Dispose();
         GC.SuppressFinalize(this);
     }
 }

@@ -197,7 +197,7 @@ public class ProductManagementService
         }
 
         // Simple property update - modify record directly
-        record.Status = ProductStatus.Archived.ToString().ToLowerInvariant();
+        record.Status = ProductStatus.Active.ToString().ToLowerInvariant();
         record.UpdatedAt = DateHelper.Now();
 
         var savedRecord = await _productRepository.SaveAsync(record);

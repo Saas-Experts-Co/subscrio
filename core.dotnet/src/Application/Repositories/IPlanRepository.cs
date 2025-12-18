@@ -18,6 +18,12 @@ public interface IPlanRepository
     // Foreign key checks
     Task<bool> HasBillingCyclesAsync(long planId);
     Task<bool> HasPlanTransitionReferencesAsync(string billingCycleKey);
+
+    // Plan-Feature value management
+    Task SetFeatureValueAsync(long planId, long featureId, string value);
+    Task RemoveFeatureValueAsync(long planId, long featureId);
+    Task<string?> GetFeatureValueAsync(long planId, long featureId);
+    Task<List<PlanFeatureRecord>> GetFeatureValuesAsync(long planId);
 }
 
 

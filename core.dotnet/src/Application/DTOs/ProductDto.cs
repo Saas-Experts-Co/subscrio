@@ -4,13 +4,13 @@ public record CreateProductDto(
     string Key,
     string DisplayName,
     string? Description = null,
-    Dictionary<string, object>? Metadata = null
+    Dictionary<string, object?>? Metadata = null
 );
 
 public record UpdateProductDto(
     string? DisplayName = null,
     string? Description = null,
-    Dictionary<string, object>? Metadata = null
+    Dictionary<string, object?>? Metadata = null
 );
 
 public record ProductDto(
@@ -18,7 +18,7 @@ public record ProductDto(
     string DisplayName,
     string? Description,
     string Status,
-    Dictionary<string, object>? Metadata,
+    Dictionary<string, object?>? Metadata,
     string CreatedAt,
     string UpdatedAt
 );

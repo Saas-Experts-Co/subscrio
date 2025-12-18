@@ -57,19 +57,31 @@ public class StripeIntegrationService
                 break;
 
             case Events.CustomerSubscriptionCreated:
-                await HandleSubscriptionCreatedAsync(stripeEvent.Data.Object as Stripe.Subscription);
+                if (stripeEvent.Data.Object is Stripe.Subscription subscriptionCreated)
+                {
+                    await HandleSubscriptionCreatedAsync(subscriptionCreated);
+                }
                 break;
 
             case Events.CustomerSubscriptionUpdated:
-                await HandleSubscriptionUpdatedAsync(stripeEvent.Data.Object as Stripe.Subscription);
+                if (stripeEvent.Data.Object is Stripe.Subscription subscriptionUpdated)
+                {
+                    await HandleSubscriptionUpdatedAsync(subscriptionUpdated);
+                }
                 break;
 
             case Events.CustomerSubscriptionDeleted:
-                await HandleSubscriptionDeletedAsync(stripeEvent.Data.Object as Stripe.Subscription);
+                if (stripeEvent.Data.Object is Stripe.Subscription subscriptionDeleted)
+                {
+                    await HandleSubscriptionDeletedAsync(subscriptionDeleted);
+                }
                 break;
 
             case Events.InvoicePaymentSucceeded:
-                await HandlePaymentSucceededAsync(stripeEvent.Data.Object as Stripe.Invoice);
+                if (stripeEvent.Data.Object is Stripe.Invoice invoice)
+                {
+                    await HandlePaymentSucceededAsync(invoice);
+                }
                 break;
 
             default:
@@ -550,8 +562,18 @@ public class StripeIntegrationService
             throw new NotFoundException($"Plan not found for billing cycle '{billingCycle.Key}'");
         }
         
+        // Load plan feature values
+        var featureValueRecords = await PlanRepository.GetFeatureValuesAsync(planRecord.Id);
+        var featureValues = featureValueRecords.Select(fvr => new PlanFeatureValue
+        {
+            FeatureId = fvr.FeatureId,
+            Value = fvr.Value,
+            CreatedAt = fvr.CreatedAt,
+            UpdatedAt = fvr.UpdatedAt
+        }).ToList();
+        
         // Convert to domain entity
-        var plan = PlanMapper.ToDomain(planRecord, "", null, new List<PlanFeatureValue>());
+        var plan = PlanMapper.ToDomain(planRecord, "", null, featureValues);
 
         return (billingCycle, plan);
     }

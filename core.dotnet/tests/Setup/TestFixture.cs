@@ -30,7 +30,7 @@ public class TestFixtures
                 ? overrides["Description"].ToString() 
                 : null,
             Metadata: overrides?.ContainsKey("Metadata") == true 
-                ? overrides["Metadata"] as Dictionary<string, object> 
+                ? overrides["Metadata"] as Dictionary<string, object?> 
                 : null
         );
 
@@ -61,10 +61,10 @@ public class TestFixtures
                 ? overrides["GroupName"].ToString() 
                 : null,
             Validator: overrides?.ContainsKey("Validator") == true 
-                ? overrides["Validator"] as Dictionary<string, object> 
+                ? overrides["Validator"] as Dictionary<string, object?> 
                 : null,
             Metadata: overrides?.ContainsKey("Metadata") == true 
-                ? overrides["Metadata"] as Dictionary<string, object> 
+                ? overrides["Metadata"] as Dictionary<string, object?> 
                 : null
         );
 
@@ -89,7 +89,7 @@ public class TestFixtures
                 ? overrides["ExternalBillingId"].ToString() 
                 : null,
             Metadata: overrides?.ContainsKey("Metadata") == true 
-                ? overrides["Metadata"] as Dictionary<string, object> 
+                ? overrides["Metadata"] as Dictionary<string, object?> 
                 : null
         );
 
@@ -115,7 +115,7 @@ public class TestFixtures
                 ? overrides["OnExpireTransitionToBillingCycleKey"].ToString() 
                 : null,
             Metadata: overrides?.ContainsKey("Metadata") == true 
-                ? overrides["Metadata"] as Dictionary<string, object> 
+                ? overrides["Metadata"] as Dictionary<string, object?> 
                 : null
         );
 
@@ -181,7 +181,7 @@ public class TestFixtures
                 ? overrides["StripeSubscriptionId"].ToString() 
                 : null,
             Metadata: overrides?.ContainsKey("Metadata") == true 
-                ? overrides["Metadata"] as Dictionary<string, object> 
+                ? overrides["Metadata"] as Dictionary<string, object?> 
                 : null
         );
 
