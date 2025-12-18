@@ -1,12 +1,23 @@
 using System.Text.Json;
+using System.Reflection;
+using System.Text.Json.Serialization;
+using Microsoft.EntityFrameworkCore;
 using Subscrio.Core;
 using Subscrio.Core.Application.DTOs;
 using Subscrio.Core.Domain.ValueObjects;
+using Subscrio.Core.Infrastructure.Database;
 using Subscrio.Sample;
 using SubscrioInstance = Subscrio.Core.Subscrio;
 
 // Global interactive mode flag
 bool isInteractiveMode = false;
+
+// JSON serializer options with camelCase naming to match TypeScript output
+JsonSerializerOptions JsonOptions = new JsonSerializerOptions
+{
+    WriteIndented = true,
+    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+};
 
 // ═══════════════════════════════════════════════════════════
 // MAIN FUNCTION
@@ -66,7 +77,7 @@ async Task Main()
     }
     finally
     {
-        await subscrio.DisposeAsync();
+        subscrio.Dispose();
         Console.WriteLine("Database connections closed.\n");
     }
 }
@@ -114,7 +125,7 @@ async Task RunPhase1_SystemSetupAsync(SubscrioInstance subscrio)
     // Verify creation by fetching the product
     Console.WriteLine("📥 Input: subscrio.Products.GetProductAsync(\"projecthub\")");
     var fetchedProduct = await subscrio.Products.GetProductAsync(product.Key);
-    Console.WriteLine($"📄 Output: Product DTO: {JsonSerializer.Serialize(fetchedProduct, new JsonSerializerOptions { WriteIndented = true })}");
+    Console.WriteLine($"📄 Output: Product DTO: {JsonSerializer.Serialize(fetchedProduct, JsonOptions)}");
     PrintDivider();
 
     if (isInteractiveMode)
@@ -168,7 +179,16 @@ async Task RunPhase1_SystemSetupAsync(SubscrioInstance subscrio)
 
     foreach (var featureData in features)
     {
-        Console.WriteLine($"📥 Input: subscrio.Features.CreateFeatureAsync({JsonSerializer.Serialize(featureData, new JsonSerializerOptions { WriteIndented = true })})");
+        // Serialize only the properties that TypeScript shows in input
+        var inputDto = new
+        {
+            featureData.Key,
+            featureData.DisplayName,
+            featureData.ValueType,
+            featureData.DefaultValue,
+            featureData.Description
+        };
+        Console.WriteLine($"📥 Input: subscrio.Features.CreateFeatureAsync({JsonSerializer.Serialize(inputDto, JsonOptions)})");
         var feature = await subscrio.Features.CreateFeatureAsync(featureData);
 
         Console.WriteLine($"📥 Input: subscrio.Products.AssociateFeatureAsync(\"projecthub\", \"{feature.Key}\")");
@@ -178,7 +198,7 @@ async Task RunPhase1_SystemSetupAsync(SubscrioInstance subscrio)
         // Verify creation by fetching the feature
         Console.WriteLine($"📥 Input: subscrio.Features.GetFeatureAsync(\"{feature.Key}\")");
         var fetchedFeature = await subscrio.Features.GetFeatureAsync(feature.Key);
-        Console.WriteLine($"📄 Output: Feature DTO ({feature.Key}): {JsonSerializer.Serialize(fetchedFeature, new JsonSerializerOptions { WriteIndented = true })}");
+        Console.WriteLine($"📄 Output: Feature DTO ({feature.Key}): {JsonSerializer.Serialize(fetchedFeature, JsonOptions)}");
     }
     PrintDivider();
 
@@ -228,8 +248,8 @@ async Task RunPhase1_SystemSetupAsync(SubscrioInstance subscrio)
 
     Console.WriteLine("📥 Input: subscrio.Plans.GetPlanAsync(\"free\")");
     Console.WriteLine("📥 Input: subscrio.BillingCycles.GetBillingCycleAsync(\"free-forever\")");
-    Console.WriteLine($"📄 Output: Free Plan DTO: {JsonSerializer.Serialize(await subscrio.Plans.GetPlanAsync("free"), new JsonSerializerOptions { WriteIndented = true })}");
-    Console.WriteLine($"📄 Output: Free Forever Billing Cycle DTO: {JsonSerializer.Serialize(await subscrio.BillingCycles.GetBillingCycleAsync("free-forever"), new JsonSerializerOptions { WriteIndented = true })}");
+    Console.WriteLine($"📄 Output: Free Plan DTO: {JsonSerializer.Serialize(await subscrio.Plans.GetPlanAsync("free"), JsonOptions)}");
+    Console.WriteLine($"📄 Output: Free Forever Billing Cycle DTO: {JsonSerializer.Serialize(await subscrio.BillingCycles.GetBillingCycleAsync("free-forever"), JsonOptions)}");
 
     // Starter Plan (with transition to free-forever)
     Console.WriteLine("📥 Input: subscrio.Plans.CreatePlanAsync(new CreatePlanDto(");
@@ -285,9 +305,9 @@ async Task RunPhase1_SystemSetupAsync(SubscrioInstance subscrio)
     Console.WriteLine("📥 Input: subscrio.Plans.GetPlanAsync(\"starter\")");
     Console.WriteLine("📥 Input: subscrio.BillingCycles.GetBillingCycleAsync(\"starter-monthly\")");
     Console.WriteLine("📥 Input: subscrio.BillingCycles.GetBillingCycleAsync(\"starter-annual\")");
-    Console.WriteLine($"📄 Output: Starter Plan DTO: {JsonSerializer.Serialize(await subscrio.Plans.GetPlanAsync("starter"), new JsonSerializerOptions { WriteIndented = true })}");
-    Console.WriteLine($"📄 Output: Starter Monthly Billing Cycle DTO: {JsonSerializer.Serialize(await subscrio.BillingCycles.GetBillingCycleAsync("starter-monthly"), new JsonSerializerOptions { WriteIndented = true })}");
-    Console.WriteLine($"📄 Output: Starter Annual Billing Cycle DTO: {JsonSerializer.Serialize(await subscrio.BillingCycles.GetBillingCycleAsync("starter-annual"), new JsonSerializerOptions { WriteIndented = true })}");
+    Console.WriteLine($"📄 Output: Starter Plan DTO: {JsonSerializer.Serialize(await subscrio.Plans.GetPlanAsync("starter"), JsonOptions)}");
+    Console.WriteLine($"📄 Output: Starter Monthly Billing Cycle DTO: {JsonSerializer.Serialize(await subscrio.BillingCycles.GetBillingCycleAsync("starter-monthly"), JsonOptions)}");
+    Console.WriteLine($"📄 Output: Starter Annual Billing Cycle DTO: {JsonSerializer.Serialize(await subscrio.BillingCycles.GetBillingCycleAsync("starter-annual"), JsonOptions)}");
 
     // Professional Plan (with transition to free-forever)
     Console.WriteLine("📥 Input: subscrio.Plans.CreatePlanAsync(new CreatePlanDto(");
@@ -308,6 +328,14 @@ async Task RunPhase1_SystemSetupAsync(SubscrioInstance subscrio)
     PrintSuccess($"Created plan: {professionalPlan.DisplayName} ({professionalPlan.Key}) with auto-transition to free plan");
 
     // Create billing cycles for professional plan
+    Console.WriteLine("📥 Input: subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(");
+    Console.WriteLine("  PlanKey: \"professional\",");
+    Console.WriteLine("  Key: \"professional-monthly\",");
+    Console.WriteLine("  DisplayName: \"Monthly\",");
+    Console.WriteLine("  DurationValue: 1,");
+    Console.WriteLine("  DurationUnit: \"months\"");
+    Console.WriteLine("))");
+
     await subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
         PlanKey: "professional",
         Key: "professional-monthly",
@@ -315,6 +343,14 @@ async Task RunPhase1_SystemSetupAsync(SubscrioInstance subscrio)
         DurationValue: 1,
         DurationUnit: "months"
     ));
+
+    Console.WriteLine("📥 Input: subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(");
+    Console.WriteLine("  PlanKey: \"professional\",");
+    Console.WriteLine("  Key: \"professional-annual\",");
+    Console.WriteLine("  DisplayName: \"Annual\",");
+    Console.WriteLine("  DurationValue: 1,");
+    Console.WriteLine("  DurationUnit: \"years\"");
+    Console.WriteLine("))");
 
     await subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
         PlanKey: "professional",
@@ -324,7 +360,22 @@ async Task RunPhase1_SystemSetupAsync(SubscrioInstance subscrio)
         DurationUnit: "years"
     ));
 
+    Console.WriteLine("📥 Input: subscrio.Plans.GetPlanAsync(\"professional\")");
+    Console.WriteLine("📥 Input: subscrio.BillingCycles.GetBillingCycleAsync(\"professional-monthly\")");
+    Console.WriteLine("📥 Input: subscrio.BillingCycles.GetBillingCycleAsync(\"professional-annual\")");
+    Console.WriteLine($"📄 Output: Professional Plan DTO: {JsonSerializer.Serialize(await subscrio.Plans.GetPlanAsync("professional"), JsonOptions)}");
+    Console.WriteLine($"📄 Output: Professional Monthly Billing Cycle DTO: {JsonSerializer.Serialize(await subscrio.BillingCycles.GetBillingCycleAsync("professional-monthly"), JsonOptions)}");
+    Console.WriteLine($"📄 Output: Professional Annual Billing Cycle DTO: {JsonSerializer.Serialize(await subscrio.BillingCycles.GetBillingCycleAsync("professional-annual"), JsonOptions)}");
+
     // Enterprise Plan (with transition to free-forever)
+    Console.WriteLine("📥 Input: subscrio.Plans.CreatePlanAsync(new CreatePlanDto(");
+    Console.WriteLine("  ProductKey: \"projecthub\",");
+    Console.WriteLine("  Key: \"enterprise\",");
+    Console.WriteLine("  DisplayName: \"Enterprise Plan\",");
+    Console.WriteLine("  Description: \"For large organizations\",");
+    Console.WriteLine("  OnExpireTransitionToBillingCycleKey: \"free-forever\"");
+    Console.WriteLine("))");
+
     var enterprisePlan = await subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
         ProductKey: "projecthub",
         Key: "enterprise",
@@ -335,6 +386,14 @@ async Task RunPhase1_SystemSetupAsync(SubscrioInstance subscrio)
     PrintSuccess($"Created plan: {enterprisePlan.DisplayName} ({enterprisePlan.Key}) with auto-transition to free plan");
 
     // Create billing cycles for enterprise plan
+    Console.WriteLine("📥 Input: subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(");
+    Console.WriteLine("  PlanKey: \"enterprise\",");
+    Console.WriteLine("  Key: \"enterprise-monthly\",");
+    Console.WriteLine("  DisplayName: \"Monthly\",");
+    Console.WriteLine("  DurationValue: 1,");
+    Console.WriteLine("  DurationUnit: \"months\"");
+    Console.WriteLine("))");
+
     await subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
         PlanKey: "enterprise",
         Key: "enterprise-monthly",
@@ -343,6 +402,14 @@ async Task RunPhase1_SystemSetupAsync(SubscrioInstance subscrio)
         DurationUnit: "months"
     ));
 
+    Console.WriteLine("📥 Input: subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(");
+    Console.WriteLine("  PlanKey: \"enterprise\",");
+    Console.WriteLine("  Key: \"enterprise-annual\",");
+    Console.WriteLine("  DisplayName: \"Annual\",");
+    Console.WriteLine("  DurationValue: 1,");
+    Console.WriteLine("  DurationUnit: \"years\"");
+    Console.WriteLine("))");
+
     await subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
         PlanKey: "enterprise",
         Key: "enterprise-annual",
@@ -350,6 +417,13 @@ async Task RunPhase1_SystemSetupAsync(SubscrioInstance subscrio)
         DurationValue: 1,
         DurationUnit: "years"
     ));
+
+    Console.WriteLine("📥 Input: subscrio.Plans.GetPlanAsync(\"enterprise\")");
+    Console.WriteLine("📥 Input: subscrio.BillingCycles.GetBillingCycleAsync(\"enterprise-monthly\")");
+    Console.WriteLine("📥 Input: subscrio.BillingCycles.GetBillingCycleAsync(\"enterprise-annual\")");
+    Console.WriteLine($"📄 Output: Enterprise Plan DTO: {JsonSerializer.Serialize(await subscrio.Plans.GetPlanAsync("enterprise"), JsonOptions)}");
+    Console.WriteLine($"📄 Output: Enterprise Monthly Billing Cycle DTO: {JsonSerializer.Serialize(await subscrio.BillingCycles.GetBillingCycleAsync("enterprise-monthly"), JsonOptions)}");
+    Console.WriteLine($"📄 Output: Enterprise Annual Billing Cycle DTO: {JsonSerializer.Serialize(await subscrio.BillingCycles.GetBillingCycleAsync("enterprise-annual"), JsonOptions)}");
 
     PrintDivider();
 
@@ -417,7 +491,7 @@ async Task RunPhase2_TrialStartAsync(SubscrioInstance subscrio)
     // Verify creation by fetching the customer
     Console.WriteLine("📥 Input: subscrio.Customers.GetCustomerAsync(\"acme-corp\")");
     var fetchedCustomer = await subscrio.Customers.GetCustomerAsync(customer.Key);
-    Console.WriteLine($"📄 Output: Customer DTO: {JsonSerializer.Serialize(fetchedCustomer, new JsonSerializerOptions { WriteIndented = true })}");
+    Console.WriteLine($"📄 Output: Customer DTO: {JsonSerializer.Serialize(fetchedCustomer, JsonOptions)}");
     PrintDivider();
 
     if (isInteractiveMode)
@@ -451,7 +525,7 @@ async Task RunPhase2_TrialStartAsync(SubscrioInstance subscrio)
     // Verify creation by fetching the subscription
     Console.WriteLine("📥 Input: subscrio.Subscriptions.GetSubscriptionAsync(\"acme-subscription\")");
     var fetchedSubscription = await subscrio.Subscriptions.GetSubscriptionAsync(subscription.Key);
-    Console.WriteLine($"📄 Output: Trial Subscription DTO: {JsonSerializer.Serialize(fetchedSubscription, new JsonSerializerOptions { WriteIndented = true })}");
+    Console.WriteLine($"📄 Output: Trial Subscription DTO: {JsonSerializer.Serialize(fetchedSubscription, JsonOptions)}");
 
     PrintInfo($"Plan: {subscription.PlanKey}", 1);
     PrintInfo($"Status: {subscription.Status}", 1);
@@ -508,7 +582,7 @@ async Task RunPhase2_TrialStartAsync(SubscrioInstance subscrio)
     PrintInfo($"API access: {(hasApiAccess ? "Enabled" : "Disabled")}", 1);
 
     // Show resolved feature values
-    Console.WriteLine($"📄 Resolved Feature Values: {JsonSerializer.Serialize(new { maxProjects, maxUsers, hasGanttCharts, hasCustomBranding, hasApiAccess }, new JsonSerializerOptions { WriteIndented = true })}");
+    Console.WriteLine($"📄 Resolved Feature Values: {JsonSerializer.Serialize(new { maxProjects, maxUsers, hasGanttCharts, hasCustomBranding, hasApiAccess }, JsonOptions)}");
 
     PrintDivider();
 
@@ -542,7 +616,7 @@ async Task RunPhase3_TrialToPurchaseAsync(SubscrioInstance subscrio)
     // Verify the conversion by fetching the updated subscription
     Console.WriteLine("📥 Input: subscrio.Subscriptions.GetSubscriptionAsync(\"acme-subscription\")");
     var convertedSubscription = await subscrio.Subscriptions.GetSubscriptionAsync("acme-subscription");
-    Console.WriteLine($"📄 Output: Converted Subscription DTO: {JsonSerializer.Serialize(convertedSubscription, new JsonSerializerOptions { WriteIndented = true })}");
+    Console.WriteLine($"📄 Output: Converted Subscription DTO: {JsonSerializer.Serialize(convertedSubscription, JsonOptions)}");
 
     PrintDivider();
 
@@ -577,7 +651,7 @@ async Task RunPhase4_PlanUpgradeAsync(SubscrioInstance subscrio)
     var upgradedSubscription = await subscrio.Subscriptions.GetSubscriptionAsync("acme-subscription");
     if (upgradedSubscription != null)
     {
-        Console.WriteLine($"📄 Output: Upgraded Subscription DTO: {JsonSerializer.Serialize(upgradedSubscription, new JsonSerializerOptions { WriteIndented = true })}");
+        Console.WriteLine($"📄 Output: Upgraded Subscription DTO: {JsonSerializer.Serialize(upgradedSubscription, JsonOptions)}");
         PrintInfo($"Plan: {upgradedSubscription.PlanKey}", 1);
         PrintInfo($"Status: {upgradedSubscription.Status}", 1);
     }
@@ -616,6 +690,9 @@ async Task RunPhase5_FeatureOverridesAsync(SubscrioInstance subscrio)
 
     PrintSuccess("Added temporary override: max-projects = 10");
 
+    // Show the feature override that was added
+    Console.WriteLine($"📄 Output: Feature Override Added: {JsonSerializer.Serialize(new { subscriptionKey = "acme-subscription", featureKey = "max-projects", value = "10", type = "temporary", description = "Temporary increase in project limit" }, JsonOptions)}");
+
     // Verify the override
     var maxProjects = await subscrio.FeatureChecker.GetValueForCustomerAsync<string>(
         "acme-corp",
@@ -653,6 +730,9 @@ async Task RunPhase5_FeatureOverridesAsync(SubscrioInstance subscrio)
 
     PrintSuccess("Added permanent override: gantt-charts = true");
 
+    // Show the feature override that was added
+    Console.WriteLine($"📄 Output: Feature Override Added: {JsonSerializer.Serialize(new { subscriptionKey = "acme-subscription", featureKey = "gantt-charts", value = "true", type = "permanent", description = "Permanent add-on for Gantt charts" }, JsonOptions)}");
+
     // Verify the override
     var hasGanttCharts = await subscrio.FeatureChecker.IsEnabledForCustomerAsync(
         "acme-corp",
@@ -686,7 +766,7 @@ async Task RunPhase6_SubscriptionRenewalAsync(SubscrioInstance subscrio)
     // Get the renewed subscription
     Console.WriteLine("📥 Input: subscrio.Subscriptions.GetSubscriptionAsync(\"acme-subscription\")");
     var renewedSubscription = await subscrio.Subscriptions.GetSubscriptionAsync("acme-subscription");
-    Console.WriteLine($"📄 Output: Renewed Subscription DTO: {JsonSerializer.Serialize(renewedSubscription, new JsonSerializerOptions { WriteIndented = true })}");
+    Console.WriteLine($"📄 Output: Renewed Subscription DTO: {JsonSerializer.Serialize(renewedSubscription, JsonOptions)}");
 
     // Check feature resolution after renewal
     var maxProjects = await subscrio.FeatureChecker.GetValueForCustomerAsync<string>(
@@ -736,7 +816,7 @@ async Task RunPhase7_DowngradeToFreeAsync(SubscrioInstance subscrio)
     var cancelledSubscription = await subscrio.Subscriptions.GetSubscriptionAsync("acme-subscription");
     if (cancelledSubscription != null)
     {
-        Console.WriteLine($"📄 Output: Cancelled Subscription DTO: {JsonSerializer.Serialize(cancelledSubscription, new JsonSerializerOptions { WriteIndented = true })}");
+        Console.WriteLine($"📄 Output: Cancelled Subscription DTO: {JsonSerializer.Serialize(cancelledSubscription, JsonOptions)}");
         PrintInfo($"Status: {cancelledSubscription.Status}", 1);
         PrintInfo($"Cancellation date: {(cancelledSubscription.CancellationDate != null ? DateTime.Parse(cancelledSubscription.CancellationDate).ToString("yyyy-MM-dd") : "N/A")}", 1);
         PrintInfo($"Current period end: {(cancelledSubscription.CurrentPeriodEnd != null ? DateTime.Parse(cancelledSubscription.CurrentPeriodEnd).ToString("yyyy-MM-dd") : "N/A")}", 1);
@@ -769,7 +849,7 @@ async Task RunPhase7_DowngradeToFreeAsync(SubscrioInstance subscrio)
     ));
     PrintSuccess("Free plan subscription created for the customer");
 
-    Console.WriteLine($"📄 Output: Free Subscription DTO: {JsonSerializer.Serialize(freeSubscription, new JsonSerializerOptions { WriteIndented = true })}");
+    Console.WriteLine($"📄 Output: Free Subscription DTO: {JsonSerializer.Serialize(freeSubscription, JsonOptions)}");
 
     PrintDivider();
 
@@ -817,7 +897,7 @@ async Task RunPhase7_DowngradeToFreeAsync(SubscrioInstance subscrio)
     PrintInfo($"API access: {(hasApiAccess ? "Enabled" : "Disabled")} (not available on free plan)", 1);
 
     // Show resolved feature values
-    Console.WriteLine($"📄 Output: Resolved Feature Values (Free Plan): {JsonSerializer.Serialize(new { maxProjects, maxUsers, hasGanttCharts, hasCustomBranding, hasApiAccess }, new JsonSerializerOptions { WriteIndented = true })}");
+    Console.WriteLine($"📄 Output: Resolved Feature Values (Free Plan): {JsonSerializer.Serialize(new { maxProjects, maxUsers, hasGanttCharts, hasCustomBranding, hasApiAccess }, JsonOptions)}");
 
     PrintDivider();
 
@@ -831,7 +911,7 @@ async Task RunPhase7_DowngradeToFreeAsync(SubscrioInstance subscrio)
 
 async Task RunPhase8_SummaryAsync()
 {
-    PrintPhase(8, "Summary");
+    PrintPhase(7, "Summary");
 
     Console.WriteLine("🎉 Demo completed successfully!");
     Console.WriteLine("");
@@ -923,11 +1003,6 @@ void PrintInfo(string message, int indent = 1)
     Console.WriteLine($"{prefix}{message}");
 }
 
-void PrintError(string message)
-{
-    Console.WriteLine($"│ ❌ {message}");
-}
-
 void PrintDivider()
 {
     Console.WriteLine("│");
@@ -1004,100 +1079,66 @@ async Task<string> PromptDemoStartAsync(bool automated = false)
 
 async Task CleanupDemoEntitiesAsync(SubscrioInstance subscrio)
 {
+    // Access the private _db field via reflection (similar to TypeScript's (subscrio as any).db)
+    var dbField = typeof(SubscrioInstance).GetField("_db", BindingFlags.NonPublic | BindingFlags.Instance);
+    if (dbField == null)
+    {
+        Console.WriteLine("⚠️  Warning: Could not access database context for cleanup");
+        return;
+    }
+
+    var db = (SubscrioDbContext)dbField.GetValue(subscrio)!;
+
     Console.WriteLine("🧹 Cleaning up existing demo entities...");
 
-    // Delete subscriptions
-    try
-    {
-        var subscription = await subscrio.Subscriptions.GetSubscriptionAsync("acme-subscription");
-        if (subscription != null)
-        {
-            await subscrio.Subscriptions.DeleteSubscriptionAsync("acme-subscription");
-        }
-    }
-    catch { }
-
-    try
-    {
-        var freeSubscription = await subscrio.Subscriptions.GetSubscriptionAsync("acme-free-subscription");
-        if (freeSubscription != null)
-        {
-            await subscrio.Subscriptions.DeleteSubscriptionAsync("acme-free-subscription");
-        }
-    }
-    catch { }
-
-    // Delete customer
-    try
-    {
-        var customer = await subscrio.Customers.GetCustomerAsync("acme-corp");
-        if (customer != null)
-        {
-            await subscrio.Customers.ArchiveCustomerAsync("acme-corp");
-            await subscrio.Customers.DeleteCustomerAsync("acme-corp");
-        }
-    }
-    catch { }
-
-    // Delete billing cycles
-    var billingCycleKeys = new[] { "free-forever", "starter-monthly", "starter-annual", "professional-monthly", "professional-annual", "enterprise-monthly", "enterprise-annual" };
-    foreach (var key in billingCycleKeys)
+    // Helper function to safely delete (suppresses errors for missing tables or 0 rows)
+    async Task SafeDeleteAsync(string sql, string description)
     {
         try
         {
-            var bc = await subscrio.BillingCycles.GetBillingCycleAsync(key);
-            if (bc != null)
+            await db.Database.ExecuteSqlRawAsync(sql);
+        }
+        catch (Exception error)
+        {
+            // Suppress errors for expected scenarios:
+            // - Table doesn't exist (--recreate case)
+            // - 0 rows affected (empty tables, normal case)
+            var errorString = error.ToString().ToLowerInvariant();
+            var isExpected =
+                errorString.Contains("does not exist") ||
+                errorString.Contains("relation") ||
+                errorString.Contains("0 rows") ||
+                errorString.Contains("no rows");
+
+            if (!isExpected)
             {
-                await subscrio.BillingCycles.ArchiveBillingCycleAsync(key);
-                await subscrio.BillingCycles.DeleteBillingCycleAsync(key);
+                // Only log unexpected errors
+                Console.WriteLine($"⚠️  Warning: {description} failed: {error.Message}");
             }
         }
-        catch { }
     }
 
-    // Delete plans
-    var planKeys = new[] { "free", "starter", "professional", "enterprise" };
-    foreach (var key in planKeys)
-    {
-        try
-        {
-            var plan = await subscrio.Plans.GetPlanAsync(key);
-            if (plan != null)
-            {
-                await subscrio.Plans.ArchivePlanAsync(key);
-                await subscrio.Plans.DeletePlanAsync(key);
-            }
-        }
-        catch { }
-    }
-
-    // Delete features
-    var featureKeys = new[] { "max-projects", "max-users-per-project", "gantt-charts", "custom-branding", "api-access" };
-    foreach (var key in featureKeys)
-    {
-        try
-        {
-            var feature = await subscrio.Features.GetFeatureAsync(key);
-            if (feature != null)
-            {
-                await subscrio.Features.ArchiveFeatureAsync(key);
-                await subscrio.Features.DeleteFeatureAsync(key);
-            }
-        }
-        catch { }
-    }
-
-    // Delete product
-    try
-    {
-        var product = await subscrio.Products.GetProductAsync("projecthub");
-        if (product != null)
-        {
-            await subscrio.Products.ArchiveProductAsync("projecthub");
-            await subscrio.Products.DeleteProductAsync("projecthub");
-        }
-    }
-    catch { }
+    // Delete in reverse dependency order
+    // Note: These may affect 0 rows or fail if tables don't exist (when using --recreate)
+    Console.WriteLine("🗑️  Deleting demo entities...");
+    await SafeDeleteAsync(
+        "DELETE FROM subscrio.subscriptions WHERE key IN ('acme-subscription', 'acme-free-subscription')",
+        "Deleting subscriptions"
+    );
+    await SafeDeleteAsync("DELETE FROM subscrio.customers WHERE key = 'acme-corp'", "Deleting customers");
+    await SafeDeleteAsync(
+        "DELETE FROM subscrio.billing_cycles WHERE key IN ('free-forever', 'starter-monthly', 'starter-annual', 'professional-monthly', 'professional-annual', 'enterprise-monthly', 'enterprise-annual')",
+        "Deleting billing cycles"
+    );
+    await SafeDeleteAsync(
+        "DELETE FROM subscrio.plans WHERE key IN ('free', 'starter', 'professional', 'enterprise')",
+        "Deleting plans"
+    );
+    await SafeDeleteAsync(
+        "DELETE FROM subscrio.features WHERE key IN ('max-projects', 'max-users-per-project', 'gantt-charts', 'custom-branding', 'api-access')",
+        "Deleting features"
+    );
+    await SafeDeleteAsync("DELETE FROM subscrio.products WHERE key = 'projecthub'", "Deleting products");
 
     Console.WriteLine("✅ Demo entities cleanup completed");
     Console.WriteLine(new string('═', 50) + "\n");

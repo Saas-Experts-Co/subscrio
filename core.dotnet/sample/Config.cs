@@ -1,4 +1,5 @@
 using Subscrio.Core.Config;
+using Subscrio.Core.Domain.ValueObjects;
 
 namespace Subscrio.Sample;
 
@@ -6,17 +7,20 @@ public static class SampleConfig
 {
     public static SubscrioConfig LoadConfig()
     {
-        var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
+        // Use hardcoded connection string (can be overridden by environment variable)
+        var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL") 
+            ?? "Host=localhost;Port=5432;Database=subscrio_sample;Username=postgres;Password=Backseat1!";
 
-        if (string.IsNullOrEmpty(connectionString))
+        return new SubscrioConfig
         {
-            Console.Error.WriteLine("ERROR: DATABASE_URL environment variable is required");
-            Console.Error.WriteLine("Please set DATABASE_URL in your environment or create a .env file");
-            Console.Error.WriteLine("Example: DATABASE_URL=Host=localhost;Port=5432;Database=subscrio_demo;Username=postgres;Password=postgres");
-            Environment.Exit(1);
-        }
-
-        return ConfigLoader.LoadConfig();
+            Database = new DatabaseConfig
+            {
+                ConnectionString = connectionString,
+                DatabaseType = DatabaseType.PostgreSQL,
+                Ssl = false,
+                PoolSize = 10
+            }
+        };
     }
 }
 

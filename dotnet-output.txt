@@ -1,0 +1,781 @@
+
+ΓòöΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòù
+Γòæ                                                           Γòæ
+Γòæ         Subscrio Customer Lifecycle Demo                  Γòæ
+Γòæ         Scenario: ProjectHub SaaS Platform                Γòæ
+Γòæ                                                           Γòæ
+Γòæ         Database: subscrio_sample                         Γòæ
+Γòæ                                                           Γòæ
+ΓòÜΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓò¥
+
+
+≡ƒñû RUNNING IN AUTOMATED MODE
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+This demo will delete existing demo entities and then create the following entities:
+
+≡ƒôª PRODUCTS: projecthub
+≡ƒöº FEATURES: max-projects, max-users-per-project, gantt-charts, custom-branding, api-access
+≡ƒôï PLANS: free, starter, professional, enterprise
+≡ƒÆ│ BILLING CYCLES: free-forever, starter-monthly, starter-annual, professional-monthly, professional-annual, enterprise-monthly, enterprise-annual
+≡ƒæñ CUSTOMERS: acme-corp
+≡ƒöä SUBSCRIPTION LIFECYCLE: trial ΓåÆ purchase ΓåÆ upgrade ΓåÆ renewal ΓåÆ cancellation ΓåÆ downgrade
+
+ΓÜá∩╕Å  Please ensure you have a dedicated test database or
+   are prepared to manually clean up these entities after the demo.
+
+≡ƒÜÇ Starting demo automatically...
+
+≡ƒº╣ Cleaning up existing demo entities...
+≡ƒùæ∩╕Å  Deleting demo entities...
+Γ£à Demo entities cleanup completed
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+
+
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+  PHASE 1: System Setup
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+
+
+ΓöîΓöÇ Step 1: Install Database Schema
+Γöé
+Γöé Γ£ô Database schema installed successfully
+Γöé
+ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+ΓöîΓöÇ Step 2: Create Product
+Γöé
+Γöé  Creating the main product for our SaaS platform
+≡ƒôÑ Input: subscrio.Products.CreateProductAsync(new CreateProductDto(
+  Key: "projecthub",
+  DisplayName: "ProjectHub",
+  Description: "A modern project management platform"
+))
+Γöé Γ£ô Product created: ProjectHub (projecthub)
+≡ƒôÑ Input: subscrio.Products.GetProductAsync("projecthub")
+≡ƒôä Output: Product DTO: {
+  "key": "projecthub",
+  "displayName": "ProjectHub",
+  "description": "A modern project management platform",
+  "status": "active",
+  "metadata": null,
+  "createdAt": "2025-12-18T21:35:04.7112295Z",
+  "updatedAt": "2025-12-18T21:35:04.7112451Z"
+}
+Γöé
+ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+ΓöîΓöÇ Step 3: Create Features
+Γöé
+≡ƒôÑ Input: subscrio.Features.CreateFeatureAsync({
+  "key": "max-projects",
+  "displayName": "Max Projects",
+  "valueType": "numeric",
+  "defaultValue": "3",
+  "description": "Maximum number of projects"
+})
+≡ƒôÑ Input: subscrio.Products.AssociateFeatureAsync("projecthub", "max-projects")
+Γöé Γ£ô Created feature: Max Projects (max-projects)
+≡ƒôÑ Input: subscrio.Features.GetFeatureAsync("max-projects")
+≡ƒôä Output: Feature DTO (max-projects): {
+  "key": "max-projects",
+  "displayName": "Max Projects",
+  "description": "Maximum number of projects",
+  "valueType": "numeric",
+  "defaultValue": "3",
+  "groupName": null,
+  "status": "active",
+  "validator": null,
+  "metadata": null,
+  "createdAt": "2025-12-18T21:35:05.3500799Z",
+  "updatedAt": "2025-12-18T21:35:05.3500940Z"
+}
+≡ƒôÑ Input: subscrio.Features.CreateFeatureAsync({
+  "key": "max-users-per-project",
+  "displayName": "Max Users Per Project",
+  "valueType": "numeric",
+  "defaultValue": "5",
+  "description": "Maximum users per project"
+})
+≡ƒôÑ Input: subscrio.Products.AssociateFeatureAsync("projecthub", "max-users-per-project")
+Γöé Γ£ô Created feature: Max Users Per Project (max-users-per-project)
+≡ƒôÑ Input: subscrio.Features.GetFeatureAsync("max-users-per-project")
+≡ƒôä Output: Feature DTO (max-users-per-project): {
+  "key": "max-users-per-project",
+  "displayName": "Max Users Per Project",
+  "description": "Maximum users per project",
+  "valueType": "numeric",
+  "defaultValue": "5",
+  "groupName": null,
+  "status": "active",
+  "validator": null,
+  "metadata": null,
+  "createdAt": "2025-12-18T21:35:05.4294289Z",
+  "updatedAt": "2025-12-18T21:35:05.4294291Z"
+}
+≡ƒôÑ Input: subscrio.Features.CreateFeatureAsync({
+  "key": "gantt-charts",
+  "displayName": "Gantt Charts",
+  "valueType": "toggle",
+  "defaultValue": "false",
+  "description": "Advanced Gantt chart visualization"
+})
+≡ƒôÑ Input: subscrio.Products.AssociateFeatureAsync("projecthub", "gantt-charts")
+Γöé Γ£ô Created feature: Gantt Charts (gantt-charts)
+≡ƒôÑ Input: subscrio.Features.GetFeatureAsync("gantt-charts")
+≡ƒôä Output: Feature DTO (gantt-charts): {
+  "key": "gantt-charts",
+  "displayName": "Gantt Charts",
+  "description": "Advanced Gantt chart visualization",
+  "valueType": "toggle",
+  "defaultValue": "false",
+  "groupName": null,
+  "status": "active",
+  "validator": null,
+  "metadata": null,
+  "createdAt": "2025-12-18T21:35:05.4491306Z",
+  "updatedAt": "2025-12-18T21:35:05.4491307Z"
+}
+≡ƒôÑ Input: subscrio.Features.CreateFeatureAsync({
+  "key": "custom-branding",
+  "displayName": "Custom Branding",
+  "valueType": "toggle",
+  "defaultValue": "false",
+  "description": "White-label branding options"
+})
+≡ƒôÑ Input: subscrio.Products.AssociateFeatureAsync("projecthub", "custom-branding")
+Γöé Γ£ô Created feature: Custom Branding (custom-branding)
+≡ƒôÑ Input: subscrio.Features.GetFeatureAsync("custom-branding")
+≡ƒôä Output: Feature DTO (custom-branding): {
+  "key": "custom-branding",
+  "displayName": "Custom Branding",
+  "description": "White-label branding options",
+  "valueType": "toggle",
+  "defaultValue": "false",
+  "groupName": null,
+  "status": "active",
+  "validator": null,
+  "metadata": null,
+  "createdAt": "2025-12-18T21:35:05.4567579Z",
+  "updatedAt": "2025-12-18T21:35:05.4567581Z"
+}
+≡ƒôÑ Input: subscrio.Features.CreateFeatureAsync({
+  "key": "api-access",
+  "displayName": "API Access",
+  "valueType": "toggle",
+  "defaultValue": "false",
+  "description": "REST API access"
+})
+≡ƒôÑ Input: subscrio.Products.AssociateFeatureAsync("projecthub", "api-access")
+Γöé Γ£ô Created feature: API Access (api-access)
+≡ƒôÑ Input: subscrio.Features.GetFeatureAsync("api-access")
+≡ƒôä Output: Feature DTO (api-access): {
+  "key": "api-access",
+  "displayName": "API Access",
+  "description": "REST API access",
+  "valueType": "toggle",
+  "defaultValue": "false",
+  "groupName": null,
+  "status": "active",
+  "validator": null,
+  "metadata": null,
+  "createdAt": "2025-12-18T21:35:05.4647009Z",
+  "updatedAt": "2025-12-18T21:35:05.4647011Z"
+}
+Γöé
+ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+ΓöîΓöÇ Step 4: Create Plans with Billing Cycles
+Γöé
+Γöé  Create each plan with its billing cycles and optional transition configuration
+≡ƒôÑ Input: subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
+  ProductKey: "projecthub",
+  Key: "free",
+  DisplayName: "Free Plan",
+  Description: "Perfect for individuals and small teams"
+))
+Γöé Γ£ô Created plan: Free Plan (free)
+≡ƒôÑ Input: subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
+  PlanKey: "free",
+  Key: "free-forever",
+  DisplayName: "Forever",
+  Description: "Never-ending free access",
+  DurationUnit: "forever"
+))
+≡ƒôÑ Input: subscrio.Plans.GetPlanAsync("free")
+≡ƒôÑ Input: subscrio.BillingCycles.GetBillingCycleAsync("free-forever")
+≡ƒôä Output: Free Plan DTO: {
+  "productKey": "projecthub",
+  "key": "free",
+  "displayName": "Free Plan",
+  "description": "Perfect for individuals and small teams",
+  "status": "active",
+  "onExpireTransitionToBillingCycleKey": null,
+  "metadata": null,
+  "createdAt": "2025-12-18T21:35:05.9883422Z",
+  "updatedAt": "2025-12-18T21:35:05.9883577Z"
+}
+≡ƒôä Output: Free Forever Billing Cycle DTO: {
+  "productKey": "projecthub",
+  "planKey": "free",
+  "key": "free-forever",
+  "displayName": "Forever",
+  "description": "Never-ending free access",
+  "status": "active",
+  "durationValue": null,
+  "durationUnit": "forever",
+  "externalProductId": null,
+  "createdAt": "2025-12-18T21:35:06.0311461Z",
+  "updatedAt": "2025-12-18T21:35:06.0311577Z"
+}
+≡ƒôÑ Input: subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
+  ProductKey: "projecthub",
+  Key: "starter",
+  DisplayName: "Starter Plan",
+  Description: "For growing teams",
+  OnExpireTransitionToBillingCycleKey: "free-forever"
+))
+Γöé Γ£ô Created plan: Starter Plan (starter) with auto-transition to free plan
+≡ƒôÑ Input: subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
+  PlanKey: "starter",
+  Key: "starter-monthly",
+  DisplayName: "Monthly",
+  DurationValue: 1,
+  DurationUnit: "months"
+))
+≡ƒôÑ Input: subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
+  PlanKey: "starter",
+  Key: "starter-annual",
+  DisplayName: "Annual",
+  DurationValue: 1,
+  DurationUnit: "years"
+))
+≡ƒôÑ Input: subscrio.Plans.GetPlanAsync("starter")
+≡ƒôÑ Input: subscrio.BillingCycles.GetBillingCycleAsync("starter-monthly")
+≡ƒôÑ Input: subscrio.BillingCycles.GetBillingCycleAsync("starter-annual")
+≡ƒôä Output: Starter Plan DTO: {
+  "productKey": "projecthub",
+  "key": "starter",
+  "displayName": "Starter Plan",
+  "description": "For growing teams",
+  "status": "active",
+  "onExpireTransitionToBillingCycleKey": "free-forever",
+  "metadata": null,
+  "createdAt": "2025-12-18T21:35:06.0725480Z",
+  "updatedAt": "2025-12-18T21:35:06.0725481Z"
+}
+≡ƒôä Output: Starter Monthly Billing Cycle DTO: {
+  "productKey": "projecthub",
+  "planKey": "starter",
+  "key": "starter-monthly",
+  "displayName": "Monthly",
+  "description": null,
+  "status": "active",
+  "durationValue": 1,
+  "durationUnit": "months",
+  "externalProductId": null,
+  "createdAt": "2025-12-18T21:35:06.0827546Z",
+  "updatedAt": "2025-12-18T21:35:06.0827546Z"
+}
+≡ƒôä Output: Starter Annual Billing Cycle DTO: {
+  "productKey": "projecthub",
+  "planKey": "starter",
+  "key": "starter-annual",
+  "displayName": "Annual",
+  "description": null,
+  "status": "active",
+  "durationValue": 1,
+  "durationUnit": "years",
+  "externalProductId": null,
+  "createdAt": "2025-12-18T21:35:06.0886477Z",
+  "updatedAt": "2025-12-18T21:35:06.0886480Z"
+}
+≡ƒôÑ Input: subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
+  ProductKey: "projecthub",
+  Key: "professional",
+  DisplayName: "Professional Plan",
+  Description: "For established businesses",
+  OnExpireTransitionToBillingCycleKey: "free-forever"
+))
+Γöé Γ£ô Created plan: Professional Plan (professional) with auto-transition to free plan
+≡ƒôÑ Input: subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
+  PlanKey: "professional",
+  Key: "professional-monthly",
+  DisplayName: "Monthly",
+  DurationValue: 1,
+  DurationUnit: "months"
+))
+≡ƒôÑ Input: subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
+  PlanKey: "professional",
+  Key: "professional-annual",
+  DisplayName: "Annual",
+  DurationValue: 1,
+  DurationUnit: "years"
+))
+≡ƒôÑ Input: subscrio.Plans.GetPlanAsync("professional")
+≡ƒôÑ Input: subscrio.BillingCycles.GetBillingCycleAsync("professional-monthly")
+≡ƒôÑ Input: subscrio.BillingCycles.GetBillingCycleAsync("professional-annual")
+≡ƒôä Output: Professional Plan DTO: {
+  "productKey": "projecthub",
+  "key": "professional",
+  "displayName": "Professional Plan",
+  "description": "For established businesses",
+  "status": "active",
+  "onExpireTransitionToBillingCycleKey": "free-forever",
+  "metadata": null,
+  "createdAt": "2025-12-18T21:35:06.1058836Z",
+  "updatedAt": "2025-12-18T21:35:06.1058838Z"
+}
+≡ƒôä Output: Professional Monthly Billing Cycle DTO: {
+  "productKey": "projecthub",
+  "planKey": "professional",
+  "key": "professional-monthly",
+  "displayName": "Monthly",
+  "description": null,
+  "status": "active",
+  "durationValue": 1,
+  "durationUnit": "months",
+  "externalProductId": null,
+  "createdAt": "2025-12-18T21:35:06.1116054Z",
+  "updatedAt": "2025-12-18T21:35:06.1116054Z"
+}
+≡ƒôä Output: Professional Annual Billing Cycle DTO: {
+  "productKey": "projecthub",
+  "planKey": "professional",
+  "key": "professional-annual",
+  "displayName": "Annual",
+  "description": null,
+  "status": "active",
+  "durationValue": 1,
+  "durationUnit": "years",
+  "externalProductId": null,
+  "createdAt": "2025-12-18T21:35:06.1140478Z",
+  "updatedAt": "2025-12-18T21:35:06.1140479Z"
+}
+≡ƒôÑ Input: subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
+  ProductKey: "projecthub",
+  Key: "enterprise",
+  DisplayName: "Enterprise Plan",
+  Description: "For large organizations",
+  OnExpireTransitionToBillingCycleKey: "free-forever"
+))
+Γöé Γ£ô Created plan: Enterprise Plan (enterprise) with auto-transition to free plan
+≡ƒôÑ Input: subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
+  PlanKey: "enterprise",
+  Key: "enterprise-monthly",
+  DisplayName: "Monthly",
+  DurationValue: 1,
+  DurationUnit: "months"
+))
+≡ƒôÑ Input: subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
+  PlanKey: "enterprise",
+  Key: "enterprise-annual",
+  DisplayName: "Annual",
+  DurationValue: 1,
+  DurationUnit: "years"
+))
+≡ƒôÑ Input: subscrio.Plans.GetPlanAsync("enterprise")
+≡ƒôÑ Input: subscrio.BillingCycles.GetBillingCycleAsync("enterprise-monthly")
+≡ƒôÑ Input: subscrio.BillingCycles.GetBillingCycleAsync("enterprise-annual")
+≡ƒôä Output: Enterprise Plan DTO: {
+  "productKey": "projecthub",
+  "key": "enterprise",
+  "displayName": "Enterprise Plan",
+  "description": "For large organizations",
+  "status": "active",
+  "onExpireTransitionToBillingCycleKey": "free-forever",
+  "metadata": null,
+  "createdAt": "2025-12-18T21:35:06.1217127Z",
+  "updatedAt": "2025-12-18T21:35:06.1217128Z"
+}
+≡ƒôä Output: Enterprise Monthly Billing Cycle DTO: {
+  "productKey": "projecthub",
+  "planKey": "enterprise",
+  "key": "enterprise-monthly",
+  "displayName": "Monthly",
+  "description": null,
+  "status": "active",
+  "durationValue": 1,
+  "durationUnit": "months",
+  "externalProductId": null,
+  "createdAt": "2025-12-18T21:35:06.1249182Z",
+  "updatedAt": "2025-12-18T21:35:06.1249182Z"
+}
+≡ƒôä Output: Enterprise Annual Billing Cycle DTO: {
+  "productKey": "projecthub",
+  "planKey": "enterprise",
+  "key": "enterprise-annual",
+  "displayName": "Annual",
+  "description": null,
+  "status": "active",
+  "durationValue": 1,
+  "durationUnit": "years",
+  "externalProductId": null,
+  "createdAt": "2025-12-18T21:35:06.1267699Z",
+  "updatedAt": "2025-12-18T21:35:06.1267700Z"
+}
+Γöé
+ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Γöé  Configure feature limits and capabilities for each plan
+Γöé Γ£ô Free plan: 1 project, 3 users per project
+Γöé Γ£ô Starter plan: 5 projects, 10 users per project
+Γöé Γ£ô Professional plan: 25 projects, 50 users per project, Gantt charts enabled
+Γöé Γ£ô Enterprise plan: 999,999 projects/users, all features enabled
+Γöé
+ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+  PHASE 2: Trial Start
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+
+
+ΓöîΓöÇ Step 1: Create Customer
+Γöé
+Γöé  Customer signs up for the platform
+≡ƒôÑ Input: subscrio.Customers.CreateCustomerAsync(new CreateCustomerDto(
+  Key: "acme-corp",
+  DisplayName: "Acme Corporation",
+  Email: "admin@acme-corp.com"
+))
+Γöé Γ£ô Customer created: Acme Corporation (acme-corp)
+≡ƒôÑ Input: subscrio.Customers.GetCustomerAsync("acme-corp")
+≡ƒôä Output: Customer DTO: {
+  "key": "acme-corp",
+  "displayName": "Acme Corporation",
+  "email": "admin@acme-corp.com",
+  "externalBillingId": null,
+  "status": "active",
+  "metadata": null,
+  "createdAt": "2025-12-18T21:35:06.1933062Z",
+  "updatedAt": "2025-12-18T21:35:06.1933322Z"
+}
+Γöé
+ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+ΓöîΓöÇ Step 2: Create Trial Subscription
+Γöé
+Γöé  Customer starts with a 14-day trial on the starter plan
+≡ƒôÑ Input: subscrio.Subscriptions.CreateSubscriptionAsync(new CreateSubscriptionDto(
+  CustomerKey: "acme-corp",
+  BillingCycleKey: "starter-monthly",
+  Key: "acme-subscription",
+  TrialEndDate: 2026-01-01T21:35:06.7181369Z
+))
+Γöé Γ£ô Trial subscription created: acme-subscription
+≡ƒôÑ Input: subscrio.Subscriptions.GetSubscriptionAsync("acme-subscription")
+≡ƒôä Output: Trial Subscription DTO: {
+  "key": "acme-subscription",
+  "customerKey": "acme-corp",
+  "productKey": "projecthub",
+  "planKey": "starter",
+  "billingCycleKey": "starter-monthly",
+  "status": "trial",
+  "isArchived": false,
+  "activationDate": "2025-12-18T21:35:06.7316530Z",
+  "expirationDate": null,
+  "cancellationDate": null,
+  "trialEndDate": "2026-01-01T21:35:06.7181360Z",
+  "currentPeriodStart": "2025-12-18T21:35:06.7313020Z",
+  "currentPeriodEnd": "2026-01-18T21:35:06.7313020Z",
+  "stripeSubscriptionId": null,
+  "metadata": null,
+  "customer": null,
+  "createdAt": "2025-12-18T21:35:06.7318360Z",
+  "updatedAt": "2025-12-18T21:35:06.7318480Z"
+}
+Γöé  Plan: starter
+Γöé  Status: trial
+Γöé  Trial ends: 2026-01-01
+Γöé
+ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+ΓöîΓöÇ Step 3: Check Feature Access
+Γöé
+Γöé  Verify customer has access to starter plan features
+Γöé Γ£ô Max projects: 5
+Γöé Γ£ô Max users per project: 10
+Γöé  Gantt charts: Disabled
+Γöé  Custom branding: Disabled
+Γöé  API access: Disabled
+≡ƒôä Resolved Feature Values: {
+  "maxProjects": "5",
+  "maxUsers": "10",
+  "hasGanttCharts": false,
+  "hasCustomBranding": false,
+  "hasApiAccess": false
+}
+Γöé
+ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+  PHASE 3: Trial to Purchase
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+
+
+ΓöîΓöÇ Step 1: Trial Converts to Paid Subscription
+Γöé
+Γöé  Customer decides to continue after trial period
+≡ƒôÑ Input: subscrio.Subscriptions.UpdateSubscriptionAsync("acme-subscription", new UpdateSubscriptionDto(
+  TrialEndDate: null
+))
+Γöé Γ£ô Trial subscription converted to active paid subscription
+≡ƒôÑ Input: subscrio.Subscriptions.GetSubscriptionAsync("acme-subscription")
+≡ƒôä Output: Converted Subscription DTO: {
+  "key": "acme-subscription",
+  "customerKey": "acme-corp",
+  "productKey": "projecthub",
+  "planKey": "starter",
+  "billingCycleKey": "starter-monthly",
+  "status": "active",
+  "isArchived": false,
+  "activationDate": "2025-12-18T21:35:06.7316530Z",
+  "expirationDate": null,
+  "cancellationDate": null,
+  "trialEndDate": null,
+  "currentPeriodStart": "2025-12-18T21:35:06.7313020Z",
+  "currentPeriodEnd": "2026-01-18T21:35:06.7313020Z",
+  "stripeSubscriptionId": null,
+  "metadata": null,
+  "customer": null,
+  "createdAt": "2025-12-18T21:35:06.7318360Z",
+  "updatedAt": "2025-12-18T21:35:07.9667440Z"
+}
+Γöé
+ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+  PHASE 4: Plan Upgrade
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+
+
+ΓöîΓöÇ Step 1: Upgrade to Professional Plan
+Γöé
+Γöé  Customer upgrades from starter to professional plan
+≡ƒôÑ Input: subscrio.Subscriptions.UpdateSubscriptionAsync("acme-subscription", new UpdateSubscriptionDto(
+  BillingCycleKey: "professional-monthly"
+))
+Γöé Γ£ô Subscription upgraded to professional plan
+≡ƒôÑ Input: subscrio.Subscriptions.GetSubscriptionAsync("acme-subscription")
+≡ƒôä Output: Upgraded Subscription DTO: {
+  "key": "acme-subscription",
+  "customerKey": "acme-corp",
+  "productKey": "projecthub",
+  "planKey": "professional",
+  "billingCycleKey": "professional-monthly",
+  "status": "active",
+  "isArchived": false,
+  "activationDate": "2025-12-18T21:35:06.7316530Z",
+  "expirationDate": null,
+  "cancellationDate": null,
+  "trialEndDate": null,
+  "currentPeriodStart": "2025-12-18T21:35:06.7313020Z",
+  "currentPeriodEnd": "2026-01-18T21:35:06.7313020Z",
+  "stripeSubscriptionId": null,
+  "metadata": null,
+  "customer": null,
+  "createdAt": "2025-12-18T21:35:06.7318360Z",
+  "updatedAt": "2025-12-18T21:35:08.4835530Z"
+}
+Γöé  Plan: professional
+Γöé  Status: active
+Γöé
+ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+  PHASE 5: Feature Overrides
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+
+
+ΓöîΓöÇ Step 1: Add Temporary Override
+Γöé
+Γöé  Customer requests temporary increase in project limit
+≡ƒôÑ Input: subscrio.Subscriptions.AddFeatureOverrideAsync(
+  "acme-subscription",
+  "max-projects",
+  "10",
+  OverrideType.Temporary
+)
+Γöé Γ£ô Added temporary override: max-projects = 10
+≡ƒôä Output: Feature Override Added: {
+  "subscriptionKey": "acme-subscription",
+  "featureKey": "max-projects",
+  "value": "10",
+  "type": "temporary",
+  "description": "Temporary increase in project limit"
+}
+Γöé  Current max projects: 10
+Γöé
+ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+ΓöîΓöÇ Step 2: Add Permanent Override
+Γöé
+Γöé  Customer purchases add-on for Gantt charts
+≡ƒôÑ Input: subscrio.Subscriptions.AddFeatureOverrideAsync(
+  "acme-subscription",
+  "gantt-charts",
+  "true",
+  OverrideType.Permanent
+)
+Γöé Γ£ô Added permanent override: gantt-charts = true
+≡ƒôä Output: Feature Override Added: {
+  "subscriptionKey": "acme-subscription",
+  "featureKey": "gantt-charts",
+  "value": "true",
+  "type": "permanent",
+  "description": "Permanent add-on for Gantt charts"
+}
+Γöé  Gantt charts enabled: True
+Γöé
+ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+  PHASE 6: Subscription Renewal
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+
+
+ΓöîΓöÇ Step 1: Process Subscription Renewal
+Γöé
+Γöé  Subscription renews - temporary overrides are cleared, permanent ones remain
+≡ƒôÑ Input: subscrio.Subscriptions.ClearTemporaryOverridesAsync("acme-subscription")
+Γöé Γ£ô Temporary overrides cleared during renewal
+≡ƒôÑ Input: subscrio.Subscriptions.GetSubscriptionAsync("acme-subscription")
+≡ƒôä Output: Renewed Subscription DTO: {
+  "key": "acme-subscription",
+  "customerKey": "acme-corp",
+  "productKey": "projecthub",
+  "planKey": "professional",
+  "billingCycleKey": "professional-monthly",
+  "status": "active",
+  "isArchived": false,
+  "activationDate": "2025-12-18T21:35:06.7316530Z",
+  "expirationDate": null,
+  "cancellationDate": null,
+  "trialEndDate": null,
+  "currentPeriodStart": "2025-12-18T21:35:06.7313020Z",
+  "currentPeriodEnd": "2026-01-18T21:35:06.7313020Z",
+  "stripeSubscriptionId": null,
+  "metadata": null,
+  "customer": null,
+  "createdAt": "2025-12-18T21:35:06.7318360Z",
+  "updatedAt": "2025-12-18T21:35:08.4835530Z"
+}
+Γöé  Max projects: 25 (back to plan default)
+Γöé  Gantt charts: Enabled (permanent override remains)
+Γöé
+ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+  PHASE 7: Customer Cancellation and Downgrade
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+
+
+ΓöîΓöÇ Step 1: Customer Cancels Subscription
+Γöé
+Γöé  Customer cancels professional subscription - status changes to cancellation_pending but remains active until period end
+≡ƒôÑ Input: subscrio.Subscriptions.UpdateSubscriptionAsync("acme-subscription", new UpdateSubscriptionDto(
+  CancellationDate: 2025-12-18T21:35:10.5893078Z
+))
+Γöé Γ£ô Professional subscription cancelled by customer
+≡ƒôÑ Input: subscrio.Subscriptions.GetSubscriptionAsync("acme-subscription")
+≡ƒôä Output: Cancelled Subscription DTO: {
+  "key": "acme-subscription",
+  "customerKey": "acme-corp",
+  "productKey": "projecthub",
+  "planKey": "professional",
+  "billingCycleKey": "professional-monthly",
+  "status": "cancelled",
+  "isArchived": false,
+  "activationDate": "2025-12-18T21:35:06.7316530Z",
+  "expirationDate": null,
+  "cancellationDate": "2025-12-18T21:35:10.5893070Z",
+  "trialEndDate": null,
+  "currentPeriodStart": "2025-12-18T21:35:06.7313020Z",
+  "currentPeriodEnd": "2026-01-18T21:35:06.7313020Z",
+  "stripeSubscriptionId": null,
+  "metadata": null,
+  "customer": null,
+  "createdAt": "2025-12-18T21:35:06.7318360Z",
+  "updatedAt": "2025-12-18T21:35:10.5912790Z"
+}
+Γöé  Status: cancelled
+Γöé  Cancellation date: 2025-12-18
+Γöé  Current period end: 2026-01-18
+Γöé  Note: Subscription remains active until period end date (cancellation_pending status)
+Γöé
+ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+ΓöîΓöÇ Step 2: Customer Starts Free Plan
+Γöé
+Γöé  After the paid plan lapses, the customer opts into the free tier manually
+≡ƒôÑ Input: subscrio.Subscriptions.CreateSubscriptionAsync(new CreateSubscriptionDto(
+  CustomerKey: "acme-corp",
+  BillingCycleKey: "free-forever",
+  Key: "acme-free-subscription"
+))
+Γöé Γ£ô Free plan subscription created for the customer
+≡ƒôä Output: Free Subscription DTO: {
+  "key": "acme-free-subscription",
+  "customerKey": "acme-corp",
+  "productKey": "projecthub",
+  "planKey": "free",
+  "billingCycleKey": "free-forever",
+  "status": "active",
+  "isArchived": false,
+  "activationDate": "2025-12-18T21:35:11.1368980Z",
+  "expirationDate": null,
+  "cancellationDate": null,
+  "trialEndDate": null,
+  "currentPeriodStart": "2025-12-18T21:35:11.1368820Z",
+  "currentPeriodEnd": null,
+  "stripeSubscriptionId": null,
+  "metadata": null,
+  "customer": null,
+  "createdAt": "2025-12-18T21:35:11.1369000Z",
+  "updatedAt": "2025-12-18T21:35:11.1369000Z"
+}
+Γöé
+ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+ΓöîΓöÇ Step 3: Check Free Plan Feature Access
+Γöé
+Γöé  Verify customer has access to free plan features after downgrading
+Γöé Γ£ô Max projects: 1 (free plan limit)
+Γöé Γ£ô Max users per project: 3 (free plan limit)
+Γöé  Gantt charts: Disabled (not available on free plan)
+Γöé  Custom branding: Disabled (not available on free plan)
+Γöé  API access: Disabled (not available on free plan)
+≡ƒôä Output: Resolved Feature Values (Free Plan): {
+  "maxProjects": "1",
+  "maxUsers": "3",
+  "hasGanttCharts": false,
+  "hasCustomBranding": false,
+  "hasApiAccess": false
+}
+Γöé
+ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+  PHASE 7: Summary
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+
+≡ƒÄë Demo completed successfully!
+
+This demo showcased a realistic subscription lifecycle:
+ΓÇó Product and feature management
+ΓÇó Plan configuration with feature values
+ΓÇó Customer onboarding with trial subscription
+ΓÇó Trial conversion to paid subscription
+ΓÇó Plan upgrades within the same subscription
+ΓÇó Feature overrides (temporary and permanent)
+ΓÇó Subscription renewal and override lifecycle
+ΓÇó Customer-driven downgrade path back to the free plan
+ΓÇó Feature resolution hierarchy (override > plan > default)
+ΓÇó Billing cycle management
+
+Key takeaways:
+ΓÇó Subscrio handles realistic subscription scenarios elegantly
+ΓÇó Feature overrides provide flexibility for custom needs
+ΓÇó Temporary overrides clear on renewal, permanent ones persist
+ΓÇó The API supports complete subscription lifecycle management
+
+Database connections closed.
+
