@@ -2,38 +2,55 @@ using FluentAssertions;
 using Subscrio.Core;
 using Subscrio.Core.Application.DTOs;
 using Subscrio.Core.Application.Errors;
+using Subscrio.Core.Config;
+using Subscrio.Core.Domain.ValueObjects;
 using Subscrio.Core.Tests.Setup;
 using Xunit;
 
 namespace Subscrio.Core.Tests.E2E;
 
-[Collection("Database")]
-public class ProductsTests : IClassFixture<TestDatabaseFixture>
+public class ProductsTests
 {
     private readonly Subscrio _subscrio;
     private readonly TestFixtures _fixtures;
 
-    public ProductsTests(TestDatabaseFixture fixture)
+    public ProductsTests()
     {
-        _subscrio = fixture.Subscrio;
+        // Ensure database is initialized
+        TestDatabaseAssemblyFixture.EnsureInitialized();
+        
+        // Create Subscrio instance with test database connection
+        var connectionString = TestDatabaseAssemblyFixture.GetTestConnectionString();
+        var config = new SubscrioConfig
+        {
+            Database = new DatabaseConfig
+            {
+                ConnectionString = connectionString,
+                Ssl = false,
+                PoolSize = 10,
+                DatabaseType = DatabaseType.PostgreSQL
+            }
+        };
+        
+        _subscrio = new Subscrio(config);
         _fixtures = new TestFixtures(_subscrio);
     }
 
     public class ProductCreation : ProductsTests
     {
-        public ProductCreation(TestDatabaseFixture fixture) : base(fixture) { }
+        public ProductCreation() : base() { }
 
         [Fact]
         public async Task CreatesProductWithValidData()
         {
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "test-product",
-                DisplayName: "Test Product",
-                Description: "A test product"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Test Product",
+                ["Description"] = "A test product"
+            });
 
             product.Should().NotBeNull();
-            product.Key.Should().Be("test-product");
+            product.Key.Should().NotBeNullOrEmpty();
             product.DisplayName.Should().Be("Test Product");
             product.Status.Should().Be("active");
             product.CreatedAt.Should().NotBeNullOrEmpty();
@@ -43,17 +60,20 @@ public class ProductsTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task ThrowsErrorForDuplicateProductKey()
         {
-            await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "duplicate-key",
-                DisplayName: "Product 1"
-            ));
+            // Use explicit key for duplicate test scenario
+            await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["Key"] = "duplicate-key",
+                ["DisplayName"] = "Product 1"
+            });
 
             await Assert.ThrowsAsync<ConflictException>(async () =>
             {
-                await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                    Key: "duplicate-key",
-                    DisplayName: "Product 2"
-                ));
+                await _fixtures.CreateProductAsync(new Dictionary<string, object>
+                {
+                    ["Key"] = "duplicate-key",
+                    ["DisplayName"] = "Product 2"
+                });
             });
         }
 
@@ -72,20 +92,20 @@ public class ProductsTests : IClassFixture<TestDatabaseFixture>
 
     public class ProductRetrieval : ProductsTests
     {
-        public ProductRetrieval(TestDatabaseFixture fixture) : base(fixture) { }
+        public ProductRetrieval() : base() { }
 
         [Fact]
         public async Task RetrievesProductByKey()
         {
-            var created = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "retrieve-test",
-                DisplayName: "Retrieve Test"
-            ));
+            var created = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Retrieve Test"
+            });
 
             var retrieved = await _subscrio.Products.GetProductAsync(created.Key);
             retrieved.Should().NotBeNull();
             retrieved!.Key.Should().Be(created.Key);
-            retrieved.Key.Should().Be("retrieve-test");
+            retrieved.DisplayName.Should().Be("Retrieve Test");
         }
 
         [Fact]
@@ -98,22 +118,22 @@ public class ProductsTests : IClassFixture<TestDatabaseFixture>
 
     public class ProductUpdate : ProductsTests
     {
-        public ProductUpdate(TestDatabaseFixture fixture) : base(fixture) { }
+        public ProductUpdate() : base() { }
 
         [Fact]
         public async Task UpdatesProductDisplayName()
         {
-            var created = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "update-test",
-                DisplayName: "Original Name"
-            ));
+            var created = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Original Name"
+            });
 
             var updated = await _subscrio.Products.UpdateProductAsync(created.Key, new UpdateProductDto(
                 DisplayName: "Updated Name"
             ));
 
             updated.DisplayName.Should().Be("Updated Name");
-            updated.Key.Should().Be("update-test"); // Key unchanged
+            updated.Key.Should().Be(created.Key); // Key unchanged
         }
 
         [Fact]
@@ -130,15 +150,15 @@ public class ProductsTests : IClassFixture<TestDatabaseFixture>
 
     public class ProductLifecycle : ProductsTests
     {
-        public ProductLifecycle(TestDatabaseFixture fixture) : base(fixture) { }
+        public ProductLifecycle() : base() { }
 
         [Fact]
         public async Task ArchivesAndActivatesProduct()
         {
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "lifecycle-test",
-                DisplayName: "Lifecycle Test"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Lifecycle Test"
+            });
 
             await _subscrio.Products.ArchiveProductAsync(product.Key);
             var archived = await _subscrio.Products.GetProductAsync(product.Key);
@@ -153,10 +173,10 @@ public class ProductsTests : IClassFixture<TestDatabaseFixture>
         public async Task CompleteProductLifecycle()
         {
             // Create
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "lifecycle-complete",
-                DisplayName: "Lifecycle Complete"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Lifecycle Complete"
+            });
             product.Status.Should().Be("active");
 
             // Update
@@ -181,22 +201,22 @@ public class ProductsTests : IClassFixture<TestDatabaseFixture>
 
     public class FeatureAssociation : ProductsTests
     {
-        public FeatureAssociation(TestDatabaseFixture fixture) : base(fixture) { }
+        public FeatureAssociation() : base() { }
 
         [Fact]
         public async Task AssociatesAndDissociatesFeatures()
         {
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "feature-test",
-                DisplayName: "Feature Test"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Feature Test"
+            });
 
-            var feature = await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: "test-feature",
-                DisplayName: "Test Feature",
-                ValueType: "toggle",
-                DefaultValue: "false"
-            ));
+            var feature = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Test Feature",
+                ["ValueType"] = "toggle",
+                ["DefaultValue"] = "false"
+            });
 
             // Associate
             await _subscrio.Products.AssociateFeatureAsync(product.Key, feature.Key);

@@ -2,53 +2,69 @@ using FluentAssertions;
 using Subscrio.Core;
 using Subscrio.Core.Application.DTOs;
 using Subscrio.Core.Application.Errors;
+using Subscrio.Core.Config;
+using Subscrio.Core.Domain.ValueObjects;
 using Subscrio.Core.Tests.Setup;
+using System.Collections.Generic;
 using Xunit;
 
 namespace Subscrio.Core.Tests.E2E;
 
-[Collection("Database")]
-public class BillingCyclesTests : IClassFixture<TestDatabaseFixture>
+public class BillingCyclesTests
 {
     private readonly Subscrio _subscrio;
     private readonly TestFixtures _fixtures;
 
-    public BillingCyclesTests(TestDatabaseFixture fixture)
+    public BillingCyclesTests()
     {
-        _subscrio = fixture.Subscrio;
+        // Ensure database is initialized
+        TestDatabaseAssemblyFixture.EnsureInitialized();
+        
+        // Create Subscrio instance with test database connection
+        var connectionString = TestDatabaseAssemblyFixture.GetTestConnectionString();
+        var config = new SubscrioConfig
+        {
+            Database = new DatabaseConfig
+            {
+                ConnectionString = connectionString,
+                Ssl = false,
+                PoolSize = 10,
+                DatabaseType = DatabaseType.PostgreSQL
+            }
+        };
+        
+        _subscrio = new Subscrio(config);
         _fixtures = new TestFixtures(_subscrio);
     }
 
     public class CrudOperations : BillingCyclesTests
     {
-        public CrudOperations(TestDatabaseFixture fixture) : base(fixture) { }
+        public CrudOperations() : base() { }
 
         [Fact]
         public async Task CreatesBillingCycleDays()
         {
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "billing-test-product",
-                DisplayName: "Billing Test Product"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Billing Test Product"
+            });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "billing-test-plan",
-                DisplayName: "Billing Test Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Billing Test Plan"
+            });
 
-            var cycle = await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: "daily-cycle",
-                DisplayName: "Daily Cycle",
-                DurationValue: 1,
-                DurationUnit: "days"
-            ));
+            var cycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Daily Cycle",
+                ["DurationValue"] = 1,
+                ["DurationUnit"] = "days"
+            });
 
             cycle.Should().NotBeNull();
             cycle.ProductKey.Should().Be(product.Key);
             cycle.PlanKey.Should().Be(plan.Key);
-            cycle.Key.Should().Be("daily-cycle");
+            cycle.Key.Should().NotBeNullOrEmpty();
             cycle.DurationValue.Should().Be(1);
             cycle.DurationUnit.Should().Be("days");
         }
@@ -56,24 +72,22 @@ public class BillingCyclesTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task CreatesBillingCycleWeeks()
         {
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "billing-weeks-product",
-                DisplayName: "Billing Weeks Product"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Billing Weeks Product"
+            });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "billing-weeks-plan",
-                DisplayName: "Billing Weeks Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Billing Weeks Plan"
+            });
 
-            var cycle = await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: "weekly-cycle",
-                DisplayName: "Weekly Cycle",
-                DurationValue: 1,
-                DurationUnit: "weeks"
-            ));
+            var cycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Weekly Cycle",
+                ["DurationValue"] = 1,
+                ["DurationUnit"] = "weeks"
+            });
 
             cycle.DurationUnit.Should().Be("weeks");
         }
@@ -81,24 +95,22 @@ public class BillingCyclesTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task CreatesBillingCycleMonths()
         {
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "billing-months-product",
-                DisplayName: "Billing Months Product"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Billing Months Product"
+            });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "billing-months-plan",
-                DisplayName: "Billing Months Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Billing Months Plan"
+            });
 
-            var cycle = await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: "monthly-cycle",
-                DisplayName: "Monthly Cycle",
-                DurationValue: 1,
-                DurationUnit: "months"
-            ));
+            var cycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Monthly Cycle",
+                ["DurationValue"] = 1,
+                ["DurationUnit"] = "months"
+            });
 
             cycle.DurationUnit.Should().Be("months");
         }
@@ -106,24 +118,22 @@ public class BillingCyclesTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task CreatesBillingCycleYears()
         {
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "billing-years-product",
-                DisplayName: "Billing Years Product"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Billing Years Product"
+            });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "billing-years-plan",
-                DisplayName: "Billing Years Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Billing Years Plan"
+            });
 
-            var cycle = await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: "yearly-cycle",
-                DisplayName: "Yearly Cycle",
-                DurationValue: 1,
-                DurationUnit: "years"
-            ));
+            var cycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Yearly Cycle",
+                ["DurationValue"] = 1,
+                ["DurationUnit"] = "years"
+            });
 
             cycle.DurationUnit.Should().Be("years");
         }
@@ -131,25 +141,23 @@ public class BillingCyclesTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task CreatesBillingCycleWithExternalProductId()
         {
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "external-product",
-                DisplayName: "External Product"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "External Product"
+            });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "external-plan",
-                DisplayName: "External Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "External Plan"
+            });
 
-            var cycle = await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: "stripe-monthly",
-                DisplayName: "Stripe Monthly",
-                DurationValue: 1,
-                DurationUnit: "months",
-                ExternalProductId: "price_1234567890"
-            ));
+            var cycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Stripe Monthly",
+                ["DurationValue"] = 1,
+                ["DurationUnit"] = "months",
+                ["ExternalProductId"] = "price_1234567890"
+            });
 
             cycle.ExternalProductId.Should().Be("price_1234567890");
         }
@@ -157,24 +165,22 @@ public class BillingCyclesTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task RetrievesBillingCycleByKey()
         {
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "retrieve-cycle-product",
-                DisplayName: "Retrieve Cycle Product"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Retrieve Cycle Product"
+            });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "retrieve-cycle-plan",
-                DisplayName: "Retrieve Cycle Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Retrieve Cycle Plan"
+            });
 
-            var created = await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: "retrieve-cycle",
-                DisplayName: "Retrieve Cycle",
-                DurationValue: 1,
-                DurationUnit: "months"
-            ));
+            var created = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Retrieve Cycle",
+                ["DurationValue"] = 1,
+                ["DurationUnit"] = "months"
+            });
 
             var retrieved = await _subscrio.BillingCycles.GetBillingCycleAsync(created.Key);
             retrieved.Should().NotBeNull();
@@ -184,24 +190,22 @@ public class BillingCyclesTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task UpdatesBillingCycleDisplayName()
         {
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "update-name-product",
-                DisplayName: "Update Name Product"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Update Name Product"
+            });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "update-name-plan",
-                DisplayName: "Update Name Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Update Name Plan"
+            });
 
-            var cycle = await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: "update-name-cycle",
-                DisplayName: "Original Name",
-                DurationValue: 1,
-                DurationUnit: "months"
-            ));
+            var cycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Original Name",
+                ["DurationValue"] = 1,
+                ["DurationUnit"] = "months"
+            });
 
             var updated = await _subscrio.BillingCycles.UpdateBillingCycleAsync(cycle.Key, new UpdateBillingCycleDto(
                 DisplayName: "Updated Name"
@@ -213,24 +217,22 @@ public class BillingCyclesTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task UpdatesBillingCycleDuration()
         {
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "update-duration-product",
-                DisplayName: "Update Duration Product"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Update Duration Product"
+            });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "update-duration-plan",
-                DisplayName: "Update Duration Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Update Duration Plan"
+            });
 
-            var cycle = await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: "update-duration-cycle",
-                DisplayName: "Update Duration",
-                DurationValue: 1,
-                DurationUnit: "months"
-            ));
+            var cycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Update Duration",
+                ["DurationValue"] = 1,
+                ["DurationUnit"] = "months"
+            });
 
             var updated = await _subscrio.BillingCycles.UpdateBillingCycleAsync(cycle.Key, new UpdateBillingCycleDto(
                 DurationValue: 3
@@ -249,39 +251,39 @@ public class BillingCyclesTests : IClassFixture<TestDatabaseFixture>
 
     public class Validation : BillingCyclesTests
     {
-        public Validation(TestDatabaseFixture fixture) : base(fixture) { }
+        public Validation() : base() { }
 
         [Fact]
         public async Task ThrowsErrorForDuplicateBillingCycleKey()
         {
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "duplicate-cycle-product",
-                DisplayName: "Duplicate Cycle Product"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Duplicate Cycle Product"
+            });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "duplicate-cycle-plan",
-                DisplayName: "Duplicate Cycle Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Duplicate Cycle Plan"
+            });
 
-            await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: "duplicate-cycle",
-                DisplayName: "Cycle 1",
-                DurationValue: 1,
-                DurationUnit: "months"
-            ));
+            // Use explicit key for duplicate test scenario
+            await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["Key"] = "duplicate-cycle",
+                ["DisplayName"] = "Cycle 1",
+                ["DurationValue"] = 1,
+                ["DurationUnit"] = "months"
+            });
 
             await Assert.ThrowsAsync<ConflictException>(async () =>
             {
-                await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                    PlanKey: plan.Key,
-                    Key: "duplicate-cycle",
-                    DisplayName: "Cycle 2",
-                    DurationValue: 1,
-                    DurationUnit: "months"
-                ));
+                await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+                {
+                    ["Key"] = "duplicate-cycle",
+                    ["DisplayName"] = "Cycle 2",
+                    ["DurationValue"] = 1,
+                    ["DurationUnit"] = "months"
+                });
             });
         }
 
@@ -303,29 +305,27 @@ public class BillingCyclesTests : IClassFixture<TestDatabaseFixture>
 
     public class Lifecycle : BillingCyclesTests
     {
-        public Lifecycle(TestDatabaseFixture fixture) : base(fixture) { }
+        public Lifecycle() : base() { }
 
         [Fact]
         public async Task ArchivesAndUnarchivesBillingCycle()
         {
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "lifecycle-product",
-                DisplayName: "Lifecycle Product"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Lifecycle Product"
+            });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "lifecycle-plan",
-                DisplayName: "Lifecycle Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Lifecycle Plan"
+            });
 
-            var cycle = await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: "lifecycle-cycle",
-                DisplayName: "Lifecycle Cycle",
-                DurationValue: 1,
-                DurationUnit: "months"
-            ));
+            var cycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Lifecycle Cycle",
+                ["DurationValue"] = 1,
+                ["DurationUnit"] = "months"
+            });
 
             await _subscrio.BillingCycles.ArchiveBillingCycleAsync(cycle.Key);
             var archived = await _subscrio.BillingCycles.GetBillingCycleAsync(cycle.Key);
@@ -339,24 +339,22 @@ public class BillingCyclesTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task DeletesArchivedBillingCycle()
         {
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "delete-cycle-product",
-                DisplayName: "Delete Cycle Product"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Delete Cycle Product"
+            });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "delete-cycle-plan",
-                DisplayName: "Delete Cycle Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Delete Cycle Plan"
+            });
 
-            var cycle = await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: "delete-cycle",
-                DisplayName: "Delete Cycle",
-                DurationValue: 1,
-                DurationUnit: "months"
-            ));
+            var cycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Delete Cycle",
+                ["DurationValue"] = 1,
+                ["DurationUnit"] = "months"
+            });
 
             await _subscrio.BillingCycles.ArchiveBillingCycleAsync(cycle.Key);
             await _subscrio.BillingCycles.DeleteBillingCycleAsync(cycle.Key);

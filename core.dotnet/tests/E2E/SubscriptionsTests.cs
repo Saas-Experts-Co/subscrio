@@ -2,63 +2,77 @@ using FluentAssertions;
 using Subscrio.Core;
 using Subscrio.Core.Application.DTOs;
 using Subscrio.Core.Application.Errors;
+using Subscrio.Core.Config;
 using Subscrio.Core.Domain.ValueObjects;
 using Subscrio.Core.Tests.Setup;
+using System.Collections.Generic;
 using Xunit;
 
 namespace Subscrio.Core.Tests.E2E;
 
-[Collection("Database")]
-public class SubscriptionsTests : IClassFixture<TestDatabaseFixture>
+public class SubscriptionsTests
 {
     private readonly Subscrio _subscrio;
     private readonly TestFixtures _fixtures;
 
-    public SubscriptionsTests(TestDatabaseFixture fixture)
+    public SubscriptionsTests()
     {
-        _subscrio = fixture.Subscrio;
+        // Ensure database is initialized
+        TestDatabaseAssemblyFixture.EnsureInitialized();
+        
+        // Create Subscrio instance with test database connection
+        var connectionString = TestDatabaseAssemblyFixture.GetTestConnectionString();
+        var config = new SubscrioConfig
+        {
+            Database = new DatabaseConfig
+            {
+                ConnectionString = connectionString,
+                Ssl = false,
+                PoolSize = 10,
+                DatabaseType = DatabaseType.PostgreSQL
+            }
+        };
+        
+        _subscrio = new Subscrio(config);
         _fixtures = new TestFixtures(_subscrio);
     }
 
     public class CrudOperations : SubscriptionsTests
     {
-        public CrudOperations(TestDatabaseFixture fixture) : base(fixture) { }
+        public CrudOperations() : base() { }
 
         [Fact]
         public async Task CreatesSubscriptionWithValidData()
         {
-            var customer = await _subscrio.Customers.CreateCustomerAsync(new CreateCustomerDto(
-                Key: "sub-customer-1",
-                DisplayName: "Sub Customer 1"
-            ));
+            var customer = await _fixtures.CreateCustomerAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Sub Customer 1"
+            });
 
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "sub-product-1",
-                DisplayName: "Sub Product 1"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Sub Product 1"
+            });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "sub-plan-1",
-                DisplayName: "Sub Plan 1"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Sub Plan 1"
+            });
 
-            var billingCycle = await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: $"test-monthly-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
-                DisplayName: "Test Monthly",
-                DurationValue: 1,
-                DurationUnit: "months"
-            ));
+            var billingCycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Test Monthly",
+                ["DurationValue"] = 1,
+                ["DurationUnit"] = "months"
+            });
 
-            var subscription = await _subscrio.Subscriptions.CreateSubscriptionAsync(new CreateSubscriptionDto(
-                Key: "subscription-1",
-                CustomerKey: customer.Key,
-                BillingCycleKey: billingCycle.Key
-            ));
+            var subscription = await _fixtures.CreateSubscriptionAsync(
+                customer.Key,
+                billingCycle.Key
+            );
 
             subscription.Should().NotBeNull();
-            subscription.Key.Should().Be("subscription-1");
+            subscription.Key.Should().NotBeNullOrEmpty();
             subscription.CustomerKey.Should().Be(customer.Key);
             subscription.ProductKey.Should().Be(product.Key);
             subscription.PlanKey.Should().Be(plan.Key);
@@ -69,38 +83,38 @@ public class SubscriptionsTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task CreatesSubscriptionWithTrialPeriod()
         {
-            var customer = await _subscrio.Customers.CreateCustomerAsync(new CreateCustomerDto(
-                Key: "trial-customer",
-                DisplayName: "Trial Customer"
-            ));
+            var customer = await _fixtures.CreateCustomerAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Trial Customer"
+            });
 
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "trial-product",
-                DisplayName: "Trial Product"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Trial Product"
+            });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "trial-plan",
-                DisplayName: "Trial Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Trial Plan"
+            });
 
-            var billingCycle = await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: $"test-monthly-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
-                DisplayName: "Test Monthly",
-                DurationValue: 1,
-                DurationUnit: "months"
-            ));
+            var billingCycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Test Monthly",
+                ["DurationValue"] = 1,
+                ["DurationUnit"] = "months"
+            });
 
             var trialEnd = DateTime.UtcNow.AddDays(14);
 
-            var subscription = await _subscrio.Subscriptions.CreateSubscriptionAsync(new CreateSubscriptionDto(
-                Key: "trial-subscription",
-                CustomerKey: customer.Key,
-                BillingCycleKey: billingCycle.Key,
-                TrialEndDate: trialEnd
-            ));
+            var subscription = await _fixtures.CreateSubscriptionAsync(
+                customer.Key,
+                billingCycle.Key,
+                new Dictionary<string, object>
+                {
+                    ["TrialEndDate"] = trialEnd
+                }
+            );
 
             subscription.TrialEndDate.Should().NotBeNullOrEmpty();
         }
@@ -108,35 +122,32 @@ public class SubscriptionsTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task RetrievesSubscriptionByKey()
         {
-            var customer = await _subscrio.Customers.CreateCustomerAsync(new CreateCustomerDto(
-                Key: "retrieve-sub-customer",
-                DisplayName: "Retrieve Sub Customer"
-            ));
+            var customer = await _fixtures.CreateCustomerAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Retrieve Sub Customer"
+            });
 
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "retrieve-sub-product",
-                DisplayName: "Retrieve Sub Product"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Retrieve Sub Product"
+            });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "retrieve-sub-plan",
-                DisplayName: "Retrieve Sub Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Retrieve Sub Plan"
+            });
 
-            var billingCycle = await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: $"test-monthly-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
-                DisplayName: "Test Monthly",
-                DurationValue: 1,
-                DurationUnit: "months"
-            ));
+            var billingCycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Test Monthly",
+                ["DurationValue"] = 1,
+                ["DurationUnit"] = "months"
+            });
 
-            var created = await _subscrio.Subscriptions.CreateSubscriptionAsync(new CreateSubscriptionDto(
-                Key: "retrieve-subscription",
-                CustomerKey: customer.Key,
-                BillingCycleKey: billingCycle.Key
-            ));
+            var created = await _fixtures.CreateSubscriptionAsync(
+                customer.Key,
+                billingCycle.Key
+            );
 
             var retrieved = await _subscrio.Subscriptions.GetSubscriptionAsync(created.Key);
             retrieved.Should().NotBeNull();
@@ -146,35 +157,32 @@ public class SubscriptionsTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task UpdatesSubscriptionMetadata()
         {
-            var customer = await _subscrio.Customers.CreateCustomerAsync(new CreateCustomerDto(
-                Key: "update-sub-customer",
-                DisplayName: "Update Sub Customer"
-            ));
+            var customer = await _fixtures.CreateCustomerAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Update Sub Customer"
+            });
 
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "update-sub-product",
-                DisplayName: "Update Sub Product"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Update Sub Product"
+            });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "update-sub-plan",
-                DisplayName: "Update Sub Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Update Sub Plan"
+            });
 
-            var billingCycle = await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: $"test-monthly-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
-                DisplayName: "Test Monthly",
-                DurationValue: 1,
-                DurationUnit: "months"
-            ));
+            var billingCycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Test Monthly",
+                ["DurationValue"] = 1,
+                ["DurationUnit"] = "months"
+            });
 
-            var subscription = await _subscrio.Subscriptions.CreateSubscriptionAsync(new CreateSubscriptionDto(
-                Key: "update-subscription",
-                CustomerKey: customer.Key,
-                BillingCycleKey: billingCycle.Key
-            ));
+            var subscription = await _fixtures.CreateSubscriptionAsync(
+                customer.Key,
+                billingCycle.Key
+            );
 
             var updated = await _subscrio.Subscriptions.UpdateSubscriptionAsync(subscription.Key, new UpdateSubscriptionDto(
                 Metadata: new Dictionary<string, object?> { ["updated"] = true }
@@ -193,49 +201,46 @@ public class SubscriptionsTests : IClassFixture<TestDatabaseFixture>
 
     public class FeatureOverrides : SubscriptionsTests
     {
-        public FeatureOverrides(TestDatabaseFixture fixture) : base(fixture) { }
+        public FeatureOverrides() : base() { }
 
         [Fact]
         public async Task AddsAndRemovesFeatureOverride()
         {
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "override-product",
-                DisplayName: "Override Product"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Override Product"
+            });
 
-            var feature = await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: "override-feature",
-                DisplayName: "Override Feature",
-                ValueType: "numeric",
-                DefaultValue: "10"
-            ));
+            var feature = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Override Feature",
+                ["ValueType"] = "numeric",
+                ["DefaultValue"] = "10"
+            });
 
             await _subscrio.Products.AssociateFeatureAsync(product.Key, feature.Key);
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "override-plan",
-                DisplayName: "Override Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Override Plan"
+            });
 
-            var billingCycle = await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: $"test-monthly-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
-                DisplayName: "Test Monthly",
-                DurationValue: 1,
-                DurationUnit: "months"
-            ));
+            var billingCycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Test Monthly",
+                ["DurationValue"] = 1,
+                ["DurationUnit"] = "months"
+            });
 
-            var customer = await _subscrio.Customers.CreateCustomerAsync(new CreateCustomerDto(
-                Key: "override-customer",
-                DisplayName: "Override Customer"
-            ));
+            var customer = await _fixtures.CreateCustomerAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Override Customer"
+            });
 
-            var subscription = await _subscrio.Subscriptions.CreateSubscriptionAsync(new CreateSubscriptionDto(
-                Key: "override-subscription",
-                CustomerKey: customer.Key,
-                BillingCycleKey: billingCycle.Key
-            ));
+            var subscription = await _fixtures.CreateSubscriptionAsync(
+                customer.Key,
+                billingCycle.Key
+            );
 
             // Add override
             await _subscrio.Subscriptions.AddFeatureOverrideAsync(
@@ -268,44 +273,41 @@ public class SubscriptionsTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task ClearsTemporaryOverrides()
         {
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "temp-override-product",
-                DisplayName: "Temp Override Product"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Temp Override Product"
+            });
 
-            var feature = await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: "temp-override-feature",
-                DisplayName: "Temp Override Feature",
-                ValueType: "numeric",
-                DefaultValue: "10"
-            ));
+            var feature = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Temp Override Feature",
+                ["ValueType"] = "numeric",
+                ["DefaultValue"] = "10"
+            });
 
             await _subscrio.Products.AssociateFeatureAsync(product.Key, feature.Key);
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "temp-override-plan",
-                DisplayName: "Temp Override Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Temp Override Plan"
+            });
 
-            var billingCycle = await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: $"test-monthly-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
-                DisplayName: "Test Monthly",
-                DurationValue: 1,
-                DurationUnit: "months"
-            ));
+            var billingCycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Test Monthly",
+                ["DurationValue"] = 1,
+                ["DurationUnit"] = "months"
+            });
 
-            var customer = await _subscrio.Customers.CreateCustomerAsync(new CreateCustomerDto(
-                Key: "temp-override-customer",
-                DisplayName: "Temp Override Customer"
-            ));
+            var customer = await _fixtures.CreateCustomerAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Temp Override Customer"
+            });
 
-            var subscription = await _subscrio.Subscriptions.CreateSubscriptionAsync(new CreateSubscriptionDto(
-                Key: "temp-override-subscription",
-                CustomerKey: customer.Key,
-                BillingCycleKey: billingCycle.Key
-            ));
+            var subscription = await _fixtures.CreateSubscriptionAsync(
+                customer.Key,
+                billingCycle.Key
+            );
 
             // Add temporary override
             await _subscrio.Subscriptions.AddFeatureOverrideAsync(
@@ -330,40 +332,37 @@ public class SubscriptionsTests : IClassFixture<TestDatabaseFixture>
 
     public class Lifecycle : SubscriptionsTests
     {
-        public Lifecycle(TestDatabaseFixture fixture) : base(fixture) { }
+        public Lifecycle() : base() { }
 
         [Fact]
         public async Task ArchivesAndUnarchivesSubscription()
         {
-            var customer = await _subscrio.Customers.CreateCustomerAsync(new CreateCustomerDto(
-                Key: "archive-sub-customer",
-                DisplayName: "Archive Sub Customer"
-            ));
+            var customer = await _fixtures.CreateCustomerAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Archive Sub Customer"
+            });
 
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "archive-sub-product",
-                DisplayName: "Archive Sub Product"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Archive Sub Product"
+            });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "archive-sub-plan",
-                DisplayName: "Archive Sub Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Archive Sub Plan"
+            });
 
-            var billingCycle = await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: $"test-monthly-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
-                DisplayName: "Test Monthly",
-                DurationValue: 1,
-                DurationUnit: "months"
-            ));
+            var billingCycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Test Monthly",
+                ["DurationValue"] = 1,
+                ["DurationUnit"] = "months"
+            });
 
-            var subscription = await _subscrio.Subscriptions.CreateSubscriptionAsync(new CreateSubscriptionDto(
-                Key: "archive-subscription",
-                CustomerKey: customer.Key,
-                BillingCycleKey: billingCycle.Key
-            ));
+            var subscription = await _fixtures.CreateSubscriptionAsync(
+                customer.Key,
+                billingCycle.Key
+            );
 
             await _subscrio.Subscriptions.ArchiveSubscriptionAsync(subscription.Key);
             var archived = await _subscrio.Subscriptions.GetSubscriptionAsync(subscription.Key);

@@ -1,20 +1,37 @@
 using FluentAssertions;
 using Subscrio.Core;
 using Subscrio.Core.Application.DTOs;
+using Subscrio.Core.Config;
+using Subscrio.Core.Domain.ValueObjects;
 using Subscrio.Core.Tests.Setup;
 using Xunit;
 
 namespace Subscrio.Core.Tests.E2E;
 
-[Collection("Database")]
-public class ConfigSyncTests : IClassFixture<TestDatabaseFixture>
+public class ConfigSyncTests
 {
     private readonly Subscrio _subscrio;
     private readonly TestFixtures _fixtures;
 
-    public ConfigSyncTests(TestDatabaseFixture fixture)
+    public ConfigSyncTests()
     {
-        _subscrio = fixture.Subscrio;
+        // Ensure database is initialized
+        TestDatabaseAssemblyFixture.EnsureInitialized();
+        
+        // Create Subscrio instance with test database connection
+        var connectionString = TestDatabaseAssemblyFixture.GetTestConnectionString();
+        var config = new SubscrioConfig
+        {
+            Database = new DatabaseConfig
+            {
+                ConnectionString = connectionString,
+                Ssl = false,
+                PoolSize = 10,
+                DatabaseType = DatabaseType.PostgreSQL
+            }
+        };
+        
+        _subscrio = new Subscrio(config);
         _fixtures = new TestFixtures(_subscrio);
     }
 

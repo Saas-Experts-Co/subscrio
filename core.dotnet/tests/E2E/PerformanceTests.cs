@@ -1,20 +1,38 @@
 using FluentAssertions;
 using Subscrio.Core;
 using Subscrio.Core.Application.DTOs;
+using Subscrio.Core.Config;
+using Subscrio.Core.Domain.ValueObjects;
 using Subscrio.Core.Tests.Setup;
+using System.Collections.Generic;
 using Xunit;
 
 namespace Subscrio.Core.Tests.E2E;
 
-[Collection("Database")]
-public class PerformanceTests : IClassFixture<TestDatabaseFixture>
+public class PerformanceTests
 {
     private readonly Subscrio _subscrio;
     private readonly TestFixtures _fixtures;
 
-    public PerformanceTests(TestDatabaseFixture fixture)
+    public PerformanceTests()
     {
-        _subscrio = fixture.Subscrio;
+        // Ensure database is initialized
+        TestDatabaseAssemblyFixture.EnsureInitialized();
+        
+        // Create Subscrio instance with test database connection
+        var connectionString = TestDatabaseAssemblyFixture.GetTestConnectionString();
+        var config = new SubscrioConfig
+        {
+            Database = new DatabaseConfig
+            {
+                ConnectionString = connectionString,
+                Ssl = false,
+                PoolSize = 10,
+                DatabaseType = DatabaseType.PostgreSQL
+            }
+        };
+        
+        _subscrio = new Subscrio(config);
         _fixtures = new TestFixtures(_subscrio);
     }
 
@@ -24,10 +42,10 @@ public class PerformanceTests : IClassFixture<TestDatabaseFixture>
         // Create multiple products
         for (int i = 0; i < 10; i++)
         {
-            await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: $"perf-product-{i}",
-                DisplayName: $"Performance Product {i}"
-            ));
+            await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = $"Performance Product {i}"
+            });
         }
 
         // List products - should complete quickly
@@ -45,31 +63,30 @@ public class PerformanceTests : IClassFixture<TestDatabaseFixture>
     public async Task ResolvesFeaturesEfficiently()
     {
         // Create product with features
-        var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-            Key: "perf-feature-product",
-            DisplayName: "Performance Feature Product"
-        ));
+        var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+        {
+            ["DisplayName"] = "Performance Feature Product"
+        });
 
         // Create multiple features
         var features = new List<FeatureDto>();
         for (int i = 0; i < 5; i++)
         {
-            var feature = await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: $"perf-feature-{i}",
-                DisplayName: $"Performance Feature {i}",
-                ValueType: "numeric",
-                DefaultValue: "10"
-            ));
+            var feature = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = $"Performance Feature {i}",
+                ["ValueType"] = "numeric",
+                ["DefaultValue"] = "10"
+            });
             features.Add(feature);
             await _subscrio.Products.AssociateFeatureAsync(product.Key, feature.Key);
         }
 
         // Create plan and set feature values
-        var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-            ProductKey: product.Key,
-            Key: "perf-plan",
-            DisplayName: "Performance Plan"
-        ));
+        var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+        {
+            ["DisplayName"] = "Performance Plan"
+        });
 
         foreach (var feature in features)
         {
@@ -77,23 +94,21 @@ public class PerformanceTests : IClassFixture<TestDatabaseFixture>
         }
 
         // Create customer and subscription
-        var customer = await _subscrio.Customers.CreateCustomerAsync(new CreateCustomerDto(
-            Key: "perf-customer",
-            DisplayName: "Performance Customer"
-        ));
+        var customer = await _fixtures.CreateCustomerAsync(new Dictionary<string, object>
+        {
+            ["DisplayName"] = "Performance Customer"
+        });
 
-        var billingCycle = await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-            PlanKey: plan.Key,
-            Key: "perf-cycle",
-            DisplayName: "Performance Cycle",
-            DurationUnit: "month"
-        ));
+        var billingCycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+        {
+            ["DisplayName"] = "Performance Cycle",
+            ["DurationUnit"] = "month"
+        });
 
-        await _subscrio.Subscriptions.CreateSubscriptionAsync(new CreateSubscriptionDto(
-            Key: "perf-subscription",
-            CustomerKey: customer.Key,
-            BillingCycleKey: billingCycle.Key
-        ));
+        await _fixtures.CreateSubscriptionAsync(
+            customer.Key,
+            billingCycle.Key
+        );
 
         // Resolve all features - should complete quickly
         var startTime = DateTime.UtcNow;

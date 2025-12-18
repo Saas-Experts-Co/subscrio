@@ -2,40 +2,58 @@ using FluentAssertions;
 using Subscrio.Core;
 using Subscrio.Core.Application.DTOs;
 using Subscrio.Core.Application.Errors;
+using Subscrio.Core.Config;
+using Subscrio.Core.Domain.ValueObjects;
 using Subscrio.Core.Tests.Setup;
+using System.Collections.Generic;
 using Xunit;
 
 namespace Subscrio.Core.Tests.E2E;
 
-[Collection("Database")]
-public class FeaturesTests : IClassFixture<TestDatabaseFixture>
+public class FeaturesTests
 {
     private readonly Subscrio _subscrio;
     private readonly TestFixtures _fixtures;
 
-    public FeaturesTests(TestDatabaseFixture fixture)
+    public FeaturesTests()
     {
-        _subscrio = fixture.Subscrio;
+        // Ensure database is initialized
+        TestDatabaseAssemblyFixture.EnsureInitialized();
+        
+        // Create Subscrio instance with test database connection
+        var connectionString = TestDatabaseAssemblyFixture.GetTestConnectionString();
+        var config = new SubscrioConfig
+        {
+            Database = new DatabaseConfig
+            {
+                ConnectionString = connectionString,
+                Ssl = false,
+                PoolSize = 10,
+                DatabaseType = DatabaseType.PostgreSQL
+            }
+        };
+        
+        _subscrio = new Subscrio(config);
         _fixtures = new TestFixtures(_subscrio);
     }
 
     public class CrudOperations : FeaturesTests
     {
-        public CrudOperations(TestDatabaseFixture fixture) : base(fixture) { }
+        public CrudOperations() : base() { }
 
         [Fact]
         public async Task CreatesFeatureWithValidDataToggleType()
         {
-            var feature = await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: "toggle-feature",
-                DisplayName: "Toggle Feature",
-                Description: "A toggle feature",
-                ValueType: "toggle",
-                DefaultValue: "false"
-            ));
+            var feature = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Toggle Feature",
+                ["Description"] = "A toggle feature",
+                ["ValueType"] = "toggle",
+                ["DefaultValue"] = "false"
+            });
 
             feature.Should().NotBeNull();
-            feature.Key.Should().Be("toggle-feature");
+            feature.Key.Should().NotBeNullOrEmpty();
             feature.DisplayName.Should().Be("Toggle Feature");
             feature.ValueType.Should().Be("toggle");
             feature.DefaultValue.Should().Be("false");
@@ -45,12 +63,12 @@ public class FeaturesTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task CreatesFeatureWithValidDataNumericType()
         {
-            var feature = await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: "numeric-feature",
-                DisplayName: "Numeric Feature",
-                ValueType: "numeric",
-                DefaultValue: "100"
-            ));
+            var feature = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Numeric Feature",
+                ["ValueType"] = "numeric",
+                ["DefaultValue"] = "100"
+            });
 
             feature.ValueType.Should().Be("numeric");
             feature.DefaultValue.Should().Be("100");
@@ -59,12 +77,12 @@ public class FeaturesTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task CreatesFeatureWithValidDataTextType()
         {
-            var feature = await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: "text-feature",
-                DisplayName: "Text Feature",
-                ValueType: "text",
-                DefaultValue: "default-text"
-            ));
+            var feature = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Text Feature",
+                ["ValueType"] = "text",
+                ["DefaultValue"] = "default-text"
+            });
 
             feature.ValueType.Should().Be("text");
             feature.DefaultValue.Should().Be("default-text");
@@ -73,12 +91,12 @@ public class FeaturesTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task RetrievesFeatureByKeyAfterCreation()
         {
-            var created = await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: "retrieve-feature",
-                DisplayName: "Retrieve Feature",
-                ValueType: "toggle",
-                DefaultValue: "false"
-            ));
+            var created = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Retrieve Feature",
+                ["ValueType"] = "toggle",
+                ["DefaultValue"] = "false"
+            });
 
             var retrieved = await _subscrio.Features.GetFeatureAsync(created.Key);
             retrieved.Should().NotBeNull();
@@ -89,12 +107,12 @@ public class FeaturesTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task UpdatesFeatureDisplayName()
         {
-            var feature = await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: "update-name-feature",
-                DisplayName: "Original Name",
-                ValueType: "toggle",
-                DefaultValue: "false"
-            ));
+            var feature = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Original Name",
+                ["ValueType"] = "toggle",
+                ["DefaultValue"] = "false"
+            });
 
             var updated = await _subscrio.Features.UpdateFeatureAsync(feature.Key, new UpdateFeatureDto(
                 DisplayName: "Updated Name"
@@ -106,12 +124,12 @@ public class FeaturesTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task UpdatesFeatureDefaultValue()
         {
-            var feature = await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: $"update-value-feature-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
-                DisplayName: "Update Value",
-                ValueType: "numeric",
-                DefaultValue: "10"
-            ));
+            var feature = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Update Value",
+                ["ValueType"] = "numeric",
+                ["DefaultValue"] = "10"
+            });
 
             var updated = await _subscrio.Features.UpdateFeatureAsync(feature.Key, new UpdateFeatureDto(
                 DefaultValue: "20"
@@ -123,12 +141,12 @@ public class FeaturesTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task UpdatesFeatureDescription()
         {
-            var feature = await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: "update-desc-feature",
-                DisplayName: "Update Desc",
-                ValueType: "toggle",
-                DefaultValue: "false"
-            ));
+            var feature = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Update Desc",
+                ["ValueType"] = "toggle",
+                ["DefaultValue"] = "false"
+            });
 
             var updated = await _subscrio.Features.UpdateFeatureAsync(feature.Key, new UpdateFeatureDto(
                 Description: "Updated description"
@@ -158,26 +176,29 @@ public class FeaturesTests : IClassFixture<TestDatabaseFixture>
 
     public class FeatureValidation : FeaturesTests
     {
-        public FeatureValidation(TestDatabaseFixture fixture) : base(fixture) { }
+        public FeatureValidation() : base() { }
 
         [Fact]
         public async Task ThrowsErrorForDuplicateFeatureKey()
         {
-            await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: "duplicate-feature",
-                DisplayName: "Feature 1",
-                ValueType: "toggle",
-                DefaultValue: "false"
-            ));
+            // Use explicit key for duplicate test scenario
+            await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["Key"] = "duplicate-feature",
+                ["DisplayName"] = "Feature 1",
+                ["ValueType"] = "toggle",
+                ["DefaultValue"] = "false"
+            });
 
             await Assert.ThrowsAsync<ConflictException>(async () =>
             {
-                await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                    Key: "duplicate-feature",
-                    DisplayName: "Feature 2",
-                    ValueType: "toggle",
-                    DefaultValue: "false"
-                ));
+                await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+                {
+                    ["Key"] = "duplicate-feature",
+                    ["DisplayName"] = "Feature 2",
+                    ["ValueType"] = "toggle",
+                    ["DefaultValue"] = "false"
+                });
             });
         }
 
@@ -240,17 +261,17 @@ public class FeaturesTests : IClassFixture<TestDatabaseFixture>
 
     public class FeatureLifecycle : FeaturesTests
     {
-        public FeatureLifecycle(TestDatabaseFixture fixture) : base(fixture) { }
+        public FeatureLifecycle() : base() { }
 
         [Fact]
         public async Task ArchivesAndUnarchivesFeature()
         {
-            var feature = await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: "lifecycle-feature",
-                DisplayName: "Lifecycle Feature",
-                ValueType: "toggle",
-                DefaultValue: "false"
-            ));
+            var feature = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Lifecycle Feature",
+                ["ValueType"] = "toggle",
+                ["DefaultValue"] = "false"
+            });
 
             await _subscrio.Features.ArchiveFeatureAsync(feature.Key);
             var archived = await _subscrio.Features.GetFeatureAsync(feature.Key);
@@ -264,12 +285,12 @@ public class FeaturesTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task DeletesArchivedFeature()
         {
-            var feature = await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: "delete-feature",
-                DisplayName: "Delete Feature",
-                ValueType: "toggle",
-                DefaultValue: "false"
-            ));
+            var feature = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Delete Feature",
+                ["ValueType"] = "toggle",
+                ["DefaultValue"] = "false"
+            });
 
             await _subscrio.Features.ArchiveFeatureAsync(feature.Key);
             await _subscrio.Features.DeleteFeatureAsync(feature.Key);
@@ -281,12 +302,12 @@ public class FeaturesTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task PreventsDeletionOfActiveFeature()
         {
-            var feature = await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: "no-delete-feature",
-                DisplayName: "No Delete",
-                ValueType: "toggle",
-                DefaultValue: "false"
-            ));
+            var feature = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "No Delete",
+                ["ValueType"] = "toggle",
+                ["DefaultValue"] = "false"
+            });
 
             await Assert.ThrowsAsync<DomainException>(async () =>
             {
@@ -297,23 +318,23 @@ public class FeaturesTests : IClassFixture<TestDatabaseFixture>
 
     public class FeatureListing : FeaturesTests
     {
-        public FeatureListing(TestDatabaseFixture fixture) : base(fixture) { }
+        public FeatureListing() : base() { }
 
         [Fact]
         public async Task ListsAllFeatures()
         {
-            await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: "list-1",
-                DisplayName: "List 1",
-                ValueType: "toggle",
-                DefaultValue: "false"
-            ));
-            await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: "list-2",
-                DisplayName: "List 2",
-                ValueType: "toggle",
-                DefaultValue: "false"
-            ));
+            await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "List 1",
+                ["ValueType"] = "toggle",
+                ["DefaultValue"] = "false"
+            });
+            await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "List 2",
+                ["ValueType"] = "toggle",
+                ["DefaultValue"] = "false"
+            });
 
             var features = await _subscrio.Features.ListFeaturesAsync();
             features.Should().HaveCountGreaterOrEqualTo(2);
@@ -322,18 +343,18 @@ public class FeaturesTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task FiltersFeaturesByStatus()
         {
-            var active = await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: "filter-active",
-                DisplayName: "Filter Active",
-                ValueType: "toggle",
-                DefaultValue: "false"
-            ));
-            var archived = await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: "filter-archived",
-                DisplayName: "Filter Archived",
-                ValueType: "toggle",
-                DefaultValue: "false"
-            ));
+            var active = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Filter Active",
+                ["ValueType"] = "toggle",
+                ["DefaultValue"] = "false"
+            });
+            var archived = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Filter Archived",
+                ["ValueType"] = "toggle",
+                ["DefaultValue"] = "false"
+            });
             await _subscrio.Features.ArchiveFeatureAsync(archived.Key);
 
             var activeFeatures = await _subscrio.Features.ListFeaturesAsync(new FeatureFilterDto(Status: "active"));
@@ -346,18 +367,18 @@ public class FeaturesTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task FiltersFeaturesByValueType()
         {
-            await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: "filter-toggle",
-                DisplayName: "Filter Toggle",
-                ValueType: "toggle",
-                DefaultValue: "false"
-            ));
-            await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: "filter-numeric",
-                DisplayName: "Filter Numeric",
-                ValueType: "numeric",
-                DefaultValue: "100"
-            ));
+            await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Filter Toggle",
+                ["ValueType"] = "toggle",
+                ["DefaultValue"] = "false"
+            });
+            await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Filter Numeric",
+                ["ValueType"] = "numeric",
+                ["DefaultValue"] = "100"
+            });
 
             var toggleFeatures = await _subscrio.Features.ListFeaturesAsync(new FeatureFilterDto(ValueType: "toggle"));
             toggleFeatures.Should().AllSatisfy(f => f.ValueType.Should().Be("toggle"));
@@ -366,28 +387,28 @@ public class FeaturesTests : IClassFixture<TestDatabaseFixture>
 
     public class FeatureProductAssociation : FeaturesTests
     {
-        public FeatureProductAssociation(TestDatabaseFixture fixture) : base(fixture) { }
+        public FeatureProductAssociation() : base() { }
 
         [Fact]
         public async Task GetsFeaturesByProduct()
         {
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "product-for-features",
-                DisplayName: "Product For Features"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Product For Features"
+            });
 
-            var feature1 = await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: "product-feature-1",
-                DisplayName: "Product Feature 1",
-                ValueType: "toggle",
-                DefaultValue: "false"
-            ));
-            var feature2 = await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-                Key: "product-feature-2",
-                DisplayName: "Product Feature 2",
-                ValueType: "toggle",
-                DefaultValue: "false"
-            ));
+            var feature1 = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Product Feature 1",
+                ["ValueType"] = "toggle",
+                ["DefaultValue"] = "false"
+            });
+            var feature2 = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Product Feature 2",
+                ["ValueType"] = "toggle",
+                ["DefaultValue"] = "false"
+            });
 
             await _subscrio.Products.AssociateFeatureAsync(product.Key, feature1.Key);
             await _subscrio.Products.AssociateFeatureAsync(product.Key, feature2.Key);
@@ -401,10 +422,10 @@ public class FeaturesTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task ReturnsEmptyListForProductWithNoFeatures()
         {
-            var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-                Key: "product-no-features",
-                DisplayName: "Product No Features"
-            ));
+            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Product No Features"
+            });
 
             var features = await _subscrio.Features.GetFeaturesByProductAsync(product.Key);
             features.Should().BeEmpty();

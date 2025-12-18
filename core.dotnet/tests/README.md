@@ -152,9 +152,9 @@ This preserves the `subscrio_test` database for inspection after tests complete.
 ```
 tests/
 ├── Setup/
-│   ├── TestDatabase.cs              # Database creation/teardown utilities
-│   ├── TestDatabaseFixture.cs       # xUnit collection fixture
-│   └── TestFixture.cs               # Test data helper methods
+│   ├── TestDatabase.cs                    # Database creation/teardown utilities
+│   ├── TestDatabaseAssemblyFixture.cs     # Assembly-level database setup/teardown
+│   └── TestFixture.cs                     # Test data helper methods
 └── E2E/
     ├── ProductsTests.cs
     ├── FeaturesTests.cs
@@ -162,7 +162,7 @@ tests/
     ├── CustomersTests.cs
     ├── SubscriptionsTests.cs
     ├── BillingCyclesTests.cs
-    ├── FeatureCheckerTests.cs       # CRITICAL - test resolution hierarchy
+    ├── FeatureCheckerTests.cs             # CRITICAL - test resolution hierarchy
     ├── FeatureCheckerCachingTests.cs
     ├── ConfigSyncTests.cs
     ├── StripeIntegrationTests.cs
@@ -171,49 +171,68 @@ tests/
 
 ## Database Setup Pattern
 
-**Current Implementation**: Uses xUnit collection fixture with a shared test database for all tests.
+**Current Implementation**: Uses assembly-level fixture with a shared test database for all tests.
 
 Each test file follows this pattern:
 
 ```csharp
-[Collection("Database")]
-public class ProductsTests : IClassFixture<TestDatabaseFixture>
+public class ProductsTests
 {
     private readonly Subscrio _subscrio;
     private readonly TestFixtures _fixtures;
 
-    public ProductsTests(TestDatabaseFixture fixture)
+    public ProductsTests()
     {
-        _subscrio = fixture.Subscrio;
+        // Ensure database is initialized
+        TestDatabaseAssemblyFixture.EnsureInitialized();
+        
+        // Create Subscrio instance with test database connection
+        var connectionString = TestDatabaseAssemblyFixture.GetTestConnectionString();
+        var config = new SubscrioConfig
+        {
+            Database = new DatabaseConfig
+            {
+                ConnectionString = connectionString,
+                Ssl = false,
+                PoolSize = 10,
+                DatabaseType = DatabaseType.PostgreSQL
+            }
+        };
+        
+        _subscrio = new Subscrio(config);
         _fixtures = new TestFixtures(_subscrio);
     }
 
     [Fact]
     public async Task CreatesProductWithValidData()
     {
-        var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-            Key: "test-product",
-            DisplayName: "Test Product"
-        ));
+        // Use TestFixtures helper for unique keys
+        var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+        {
+            ["DisplayName"] = "Test Product"
+        });
 
         product.Should().NotBeNull();
-        product.Key.Should().Be("test-product");
+        product.Key.Should().NotBeNullOrEmpty();
+        product.DisplayName.Should().Be("Test Product");
     }
 }
 ```
 
 ### Database Setup Architecture
 
-**Collection Fixture** (`TestDatabaseFixture.cs`):
-- Creates a single shared test database (`subscrio_test`)
-- Runs once before all test files
+**Assembly Fixture** (`TestDatabaseAssemblyFixture.cs`):
+- Creates a single shared test database per framework version (`subscrio_test_net80`, `subscrio_test_net90`, etc.)
+- Runs once before all test files (static initialization)
 - Handles cleanup of dangling test databases
-- Sets up global test environment
+- Provides connection string via `GetTestConnectionString()` static method
+- Each test class creates its own `Subscrio` instance but connects to the same database
 
 **Database Utilities** (`TestDatabase.cs`):
 - `SetupTestDatabaseAsync()` - Creates shared test database
 - `TeardownTestDatabaseAsync()` - Cleans up test database
 - `CleanupDanglingTestDatabasesAsync()` - Removes orphaned test databases
+- `GetTestConnectionString()` - Returns connection string for test database
 - Supports `KEEP_TEST_DB=true` for debugging
 
 ## Public API Test Coverage
@@ -393,27 +412,81 @@ public async Task ResolvesFromSubscriptionOverridePlanValueFeatureDefault()
 }
 ```
 
-## Test Fixtures
+## Test Fixtures and Unique Key Strategy
 
-Use the fixtures helper to create test data quickly:
+**CRITICAL**: Always use the `TestFixtures` helper to generate unique keys. This ensures tests are order-independent and can run in parallel.
+
+### Using TestFixtures Helper
+
+The `TestFixtures` class automatically generates unique keys with timestamps:
 
 ```csharp
 var fixtures = new TestFixtures(_subscrio);
 
-// Create a product
-var product = await fixtures.CreateProductAsync();
+// Create a product with unique key (auto-generated)
+var product = await fixtures.CreateProductAsync(new Dictionary<string, object>
+{
+    ["DisplayName"] = "Test Product"
+});
+// Key will be: "product-{timestamp}"
 
-// Create a feature
+// Create a feature with unique key
 var feature = await fixtures.CreateFeatureAsync(new Dictionary<string, object>
 {
-    ["Key"] = "max-projects",
+    ["DisplayName"] = "Max Projects",
     ["ValueType"] = "numeric",
     ["DefaultValue"] = "10"
 });
+// Key will be: "feature-{timestamp}"
 
 // Create a complete product setup
 var setup = await fixtures.SetupCompleteProductAsync();
 // Returns: { Product, Features, Plans }
+```
+
+### Explicit Keys for Test Scenarios
+
+When you need a specific key for testing (e.g., duplicate key tests), explicitly pass it via overrides:
+
+```csharp
+// For duplicate key test - explicitly set the key
+await fixtures.CreateProductAsync(new Dictionary<string, object>
+{
+    ["Key"] = "duplicate-key",  // Explicit override for test scenario
+    ["DisplayName"] = "Product 1"
+});
+
+await Assert.ThrowsAsync<ConflictException>(async () =>
+{
+    await fixtures.CreateProductAsync(new Dictionary<string, object>
+    {
+        ["Key"] = "duplicate-key",  // Same key to trigger conflict
+        ["DisplayName"] = "Product 2"
+    });
+});
+```
+
+### Benefits of Unique Keys
+
+- **Order-Independent**: Tests can run in any order without conflicts
+- **Parallelization Ready**: Tests can run in parallel without key collisions
+- **Robust**: No reliance on test execution order
+- **Consistent**: All tests follow the same pattern
+
+### ❌ Don't Use Fixed Keys
+
+```csharp
+// ❌ BAD - Fixed key, could conflict if test order changes
+var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
+    Key: "test-product",
+    DisplayName: "Test Product"
+));
+
+// ✅ GOOD - Unique key via helper
+var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+{
+    ["DisplayName"] = "Test Product"
+});
 ```
 
 ## Configuration
@@ -462,21 +535,21 @@ psql -U postgres -c "CREATE DATABASE postgres;"
 
 ### Tests hang or timeout
 - Check for unclosed database connections
-- Collection fixture handles database creation/cleanup automatically
+- Assembly fixture handles database creation/cleanup automatically
 - Tests run sequentially (xUnit default)
 - Use `KEEP_TEST_DB=true` to preserve test database for investigation
 
 ### "Too many connections"
 - PostgreSQL may have connection limit reached
 - Check active connections: `SELECT count(*) FROM pg_stat_activity;`
-- Collection fixture includes cleanup of dangling test databases
+- Assembly fixture includes cleanup of dangling test databases
 - Terminate zombie connections from failed test runs
 
 ### Test Database Issues
 - **Keep test database for debugging**: `$env:KEEP_TEST_DB = "true"; dotnet test`
-- **Manual cleanup**: Connect to postgres and run `DROP DATABASE IF EXISTS subscrio_test;`
-- **Check for orphaned databases**: Look for databases matching `subscrio_test_*` pattern
-- **Collection fixture logs**: Check console output for database setup/teardown messages
+- **Manual cleanup**: Connect to postgres and run `DROP DATABASE IF EXISTS subscrio_test_netXX;` (where XX is framework version)
+- **Check for orphaned databases**: Look for databases matching `subscrio_test_net*` pattern
+- **Assembly fixture logs**: Check console output for database setup/teardown messages (one message per framework version)
 
 ## Best Practices
 
@@ -487,8 +560,9 @@ psql -U postgres -c "CREATE DATABASE postgres;"
 
 2. **Use Real Data**
    - Don't mock the database
-   - Use fixtures to create test data
-   - Each test starts with a clean database
+   - Use `TestFixtures` helper to create test data with unique keys
+   - Each test starts with a clean database (created once per test run)
+   - Always use unique keys via `TestFixtures` helper (except for duplicate key tests)
 
 3. **Descriptive Test Names**
    ```csharp
@@ -511,7 +585,8 @@ psql -U postgres -c "CREATE DATABASE postgres;"
    ```
 
 5. **Keep Tests Fast**
-   - Run in parallel where possible (xUnit runs tests in parallel by default)
+   - Use unique keys to enable future parallelization
+   - Tests currently run sequentially (xUnit default)
    - Use database transactions for faster cleanup (if needed)
    - Don't sleep/wait unnecessarily
 

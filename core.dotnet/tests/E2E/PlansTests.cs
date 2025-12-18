@@ -2,41 +2,57 @@ using FluentAssertions;
 using Subscrio.Core;
 using Subscrio.Core.Application.DTOs;
 using Subscrio.Core.Application.Errors;
+using Subscrio.Core.Config;
+using Subscrio.Core.Domain.ValueObjects;
 using Subscrio.Core.Tests.Setup;
-using Xunit;
 using System.Collections.Generic;
+using Xunit;
 
 namespace Subscrio.Core.Tests.E2E;
 
-[Collection("Database")]
-public class PlansTests : IClassFixture<TestDatabaseFixture>
+public class PlansTests
 {
     private readonly Subscrio _subscrio;
     private readonly TestFixtures _fixtures;
 
-    public PlansTests(TestDatabaseFixture fixture)
+    public PlansTests()
     {
-        _subscrio = fixture.Subscrio;
+        // Ensure database is initialized
+        TestDatabaseAssemblyFixture.EnsureInitialized();
+        
+        // Create Subscrio instance with test database connection
+        var connectionString = TestDatabaseAssemblyFixture.GetTestConnectionString();
+        var config = new SubscrioConfig
+        {
+            Database = new DatabaseConfig
+            {
+                ConnectionString = connectionString,
+                Ssl = false,
+                PoolSize = 10,
+                DatabaseType = DatabaseType.PostgreSQL
+            }
+        };
+        
+        _subscrio = new Subscrio(config);
         _fixtures = new TestFixtures(_subscrio);
     }
 
     public class CrudOperations : PlansTests
     {
-        public CrudOperations(TestDatabaseFixture fixture) : base(fixture) { }
+        public CrudOperations() : base() { }
 
         [Fact]
         public async Task CreatesPlanWithValidData()
         {
             var product = await _fixtures.CreateProductAsync();
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: $"basic-plan-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
-                DisplayName: "Basic Plan",
-                Description: "A basic plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Basic Plan",
+                ["Description"] = "A basic plan"
+            });
 
             plan.Should().NotBeNull();
-            plan.Key.Should().StartWith("basic-plan-");
+            plan.Key.Should().NotBeNullOrEmpty();
             plan.ProductKey.Should().Be(product.Key);
             plan.DisplayName.Should().Be("Basic Plan");
             plan.Status.Should().Be("active");
@@ -47,15 +63,13 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "retrieve-product" },
-                { "DisplayName", "Retrieve Product" }
+                ["DisplayName"] = "Retrieve Product"
             });
 
-            var created = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "retrieve-plan",
-                DisplayName: "Retrieve Plan"
-            ));
+            var created = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Retrieve Plan"
+            });
 
             var retrieved = await _subscrio.Plans.GetPlanAsync(created.Key);
             retrieved.Should().NotBeNull();
@@ -68,15 +82,13 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "update-name-product" },
-                { "DisplayName", "Update Name Product" }
+                ["DisplayName"] = "Update Name Product"
             });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "update-name-plan",
-                DisplayName: "Original Name"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Original Name"
+            });
 
             var updated = await _subscrio.Plans.UpdatePlanAsync(plan.Key, new UpdatePlanDto(
                 DisplayName: "Updated Name"
@@ -90,16 +102,14 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "update-desc-product" },
-                { "DisplayName", "Update Desc Product" }
+                ["DisplayName"] = "Update Desc Product"
             });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "update-desc-plan",
-                DisplayName: "Update Desc",
-                Description: "Old description"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Update Desc",
+                ["Description"] = "Old description"
+            });
 
             var updated = await _subscrio.Plans.UpdatePlanAsync(plan.Key, new UpdatePlanDto(
                 Description: "New description"
@@ -111,10 +121,9 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task ReturnsNullForNonExistentPlan()
         {
-            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "null-plan-product" },
-                { "DisplayName", "Null Plan Product" }
+                ["DisplayName"] = "Null Plan Product"
             });
 
             var result = await _subscrio.Plans.GetPlanAsync("non-existent-plan");
@@ -126,8 +135,7 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", $"error-plan-product-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}" },
-                { "DisplayName", "Error Plan Product" }
+                ["DisplayName"] = "Error Plan Product"
             });
 
             await Assert.ThrowsAsync<NotFoundException>(async () =>
@@ -140,15 +148,14 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
 
     public class ValidationTests : PlansTests
     {
-        public ValidationTests(TestDatabaseFixture fixture) : base(fixture) { }
+        public ValidationTests() : base() { }
 
         [Fact]
         public async Task ThrowsErrorForEmptyPlanKey()
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "empty-key-product" },
-                { "DisplayName", "Empty Key Product" }
+                ["DisplayName"] = "Empty Key Product"
             });
 
             await Assert.ThrowsAsync<ValidationException>(async () =>
@@ -165,8 +172,7 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", $"invalid-key-product-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}" },
-                { "DisplayName", "Invalid Key Product" }
+                ["DisplayName"] = "Invalid Key Product"
             });
 
             await Assert.ThrowsAsync<ValidationException>(async () =>
@@ -183,28 +189,27 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product1 = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "product-1-dup" },
-                { "DisplayName", "Product 1" }
+                ["DisplayName"] = "Product 1"
             });
 
             var product2 = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "product-2-dup" },
-                { "DisplayName", "Product 2" }
+                ["DisplayName"] = "Product 2"
             });
 
-            await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product1.Key,
-                Key: "duplicate-plan",
-                DisplayName: "Plan 1"
-            ));
+            // Use explicit key for duplicate test scenario
+            await _fixtures.CreatePlanAsync(product1.Key, new Dictionary<string, object>
+            {
+                ["Key"] = "duplicate-plan",
+                ["DisplayName"] = "Plan 1"
+            });
 
             await Assert.ThrowsAsync<ConflictException>(async () =>
-                await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                    ProductKey: product2.Key,
-                    Key: "duplicate-plan",
-                    DisplayName: "Plan 2"
-                ))
+                await _fixtures.CreatePlanAsync(product2.Key, new Dictionary<string, object>
+                {
+                    ["Key"] = "duplicate-plan",
+                    ["DisplayName"] = "Plan 2"
+                })
             );
         }
 
@@ -223,22 +228,20 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
 
     public class LifecycleStatusTests : PlansTests
     {
-        public LifecycleStatusTests(TestDatabaseFixture fixture) : base(fixture) { }
+        public LifecycleStatusTests() : base() { }
 
         [Fact]
         public async Task ActivatesAPlan()
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "activate-plan-product" },
-                { "DisplayName", "Activate Plan Product" }
+                ["DisplayName"] = "Activate Plan Product"
             });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "activate-plan",
-                DisplayName: "Activate Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Activate Plan"
+            });
 
             await _subscrio.Plans.ArchivePlanAsync(plan.Key);
             await _subscrio.Plans.UnarchivePlanAsync(plan.Key);
@@ -252,15 +255,13 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "deactivate-plan-product" },
-                { "DisplayName", "Deactivate Plan Product" }
+                ["DisplayName"] = "Deactivate Plan Product"
             });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "deactivate-plan",
-                DisplayName: "Deactivate Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Deactivate Plan"
+            });
 
             await _subscrio.Plans.ArchivePlanAsync(plan.Key);
 
@@ -273,15 +274,13 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "archive-plan-product" },
-                { "DisplayName", "Archive Plan Product" }
+                ["DisplayName"] = "Archive Plan Product"
             });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "archive-plan",
-                DisplayName: "Archive Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Archive Plan"
+            });
 
             await _subscrio.Plans.ArchivePlanAsync(plan.Key);
 
@@ -294,15 +293,13 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "delete-plan-product" },
-                { "DisplayName", "Delete Plan Product" }
+                ["DisplayName"] = "Delete Plan Product"
             });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "delete-plan",
-                DisplayName: "Delete Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Delete Plan"
+            });
 
             await _subscrio.Plans.ArchivePlanAsync(plan.Key);
             await _subscrio.Plans.DeletePlanAsync(plan.Key);
@@ -316,15 +313,13 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "delete-active-plan-product" },
-                { "DisplayName", "Delete Active Plan Product" }
+                ["DisplayName"] = "Delete Active Plan Product"
             });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "delete-active-plan",
-                DisplayName: "Delete Active Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Delete Active Plan"
+            });
 
             await Assert.ThrowsAsync<DomainException>(async () =>
                 await _subscrio.Plans.DeletePlanAsync(plan.Key)
@@ -336,15 +331,13 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "delete-archived-plan-product" },
-                { "DisplayName", "Delete Archived Plan Product" }
+                ["DisplayName"] = "Delete Archived Plan Product"
             });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "delete-archived-plan",
-                DisplayName: "Delete Archived Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Delete Archived Plan"
+            });
 
             await _subscrio.Plans.ArchivePlanAsync(plan.Key);
             await _subscrio.Plans.DeletePlanAsync(plan.Key);
@@ -358,23 +351,20 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "plan-with-cycles-product" },
-                { "DisplayName", "Plan With Cycles Product" }
+                ["DisplayName"] = "Plan With Cycles Product"
             });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "plan-with-cycles",
-                DisplayName: "Plan With Cycles"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Plan With Cycles"
+            });
 
-            await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: "cycle-for-plan",
-                DisplayName: "Cycle For Plan",
-                DurationValue: 1,
-                DurationUnit: "months"
-            ));
+            await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Cycle For Plan",
+                ["DurationValue"] = 1,
+                ["DurationUnit"] = "months"
+            });
 
             await _subscrio.Plans.ArchivePlanAsync(plan.Key);
 
@@ -388,44 +378,38 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "plan-with-subs-product" },
-                { "DisplayName", "Plan With Subs Product" }
+                ["DisplayName"] = "Plan With Subs Product"
             });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "plan-with-subs",
-                DisplayName: "Plan With Subs"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Plan With Subs"
+            });
 
-            var billingCycle1 = await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: "cycle-1-for-subs",
-                DisplayName: "Cycle 1 For Subs",
-                DurationValue: 1,
-                DurationUnit: "months"
-            ));
+            var billingCycle1 = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Cycle 1 For Subs",
+                ["DurationValue"] = 1,
+                ["DurationUnit"] = "months"
+            });
 
-            var billingCycle2 = await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: "cycle-2-for-subs",
-                DisplayName: "Cycle 2 For Subs",
-                DurationValue: 1,
-                DurationUnit: "months"
-            ));
+            var billingCycle2 = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Cycle 2 For Subs",
+                ["DurationValue"] = 1,
+                ["DurationUnit"] = "months"
+            });
 
             var customer = await _fixtures.CreateCustomerAsync(new Dictionary<string, object>
             {
-                { "Key", "customer-for-plan" },
-                { "DisplayName", "Customer For Plan" }
+                ["DisplayName"] = "Customer For Plan"
             });
 
             // Create subscription using cycle 1
-            await _subscrio.Subscriptions.CreateSubscriptionAsync(new CreateSubscriptionDto(
-                Key: "sub-for-plan",
-                CustomerKey: customer.Key,
-                BillingCycleKey: billingCycle1.Key
-            ));
+            await _fixtures.CreateSubscriptionAsync(
+                customer.Key,
+                billingCycle1.Key
+            );
 
             // Archive and delete cycle 1 (this will fail because it has subscriptions)
             await _subscrio.BillingCycles.ArchiveBillingCycleAsync(billingCycle1.Key);
@@ -448,27 +432,24 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
 
     public class ListFilterTests : PlansTests
     {
-        public ListFilterTests(TestDatabaseFixture fixture) : base(fixture) { }
+        public ListFilterTests() : base() { }
 
         [Fact]
         public async Task ListsAllPlans()
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "list-plans-product" },
-                { "DisplayName", "List Plans Product" }
+                ["DisplayName"] = "List Plans Product"
             });
 
-            await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "list-plan-1",
-                DisplayName: "List Plan 1"
-            ));
-            await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "list-plan-2",
-                DisplayName: "List Plan 2"
-            ));
+            await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "List Plan 1"
+            });
+            await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "List Plan 2"
+            });
 
             var plans = await _subscrio.Plans.ListPlansAsync();
             plans.Should().HaveCountGreaterOrEqualTo(2);
@@ -479,15 +460,13 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "filter-product-key" },
-                { "DisplayName", "Filter Product Key" }
+                ["DisplayName"] = "Filter Product Key"
             });
 
-            await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "filter-plan-by-product",
-                DisplayName: "Filter Plan"
-            ));
+            await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Filter Plan"
+            });
 
             var plans = await _subscrio.Plans.ListPlansAsync(new PlanFilterDto(
                 ProductKey: product.Key
@@ -500,15 +479,13 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "filter-active-product" },
-                { "DisplayName", "Filter Active Product" }
+                ["DisplayName"] = "Filter Active Product"
             });
 
-            await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "filter-active-plan",
-                DisplayName: "Filter Active Plan"
-            ));
+            await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Filter Active Plan"
+            });
 
             var activePlans = await _subscrio.Plans.ListPlansAsync(new PlanFilterDto(
                 Status: "active"
@@ -521,15 +498,13 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "filter-archived-product" },
-                { "DisplayName", "Filter Archived Product" }
+                ["DisplayName"] = "Filter Archived Product"
             });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "filter-archived-plan",
-                DisplayName: "Filter Archived Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Filter Archived Plan"
+            });
 
             await _subscrio.Plans.ArchivePlanAsync(plan.Key);
 
@@ -544,20 +519,18 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "search-plans-product" },
-                { "DisplayName", "Search Plans Product" }
+                ["DisplayName"] = "Search Plans Product"
             });
 
-            await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "search-unique-plan",
-                DisplayName: "Search Unique Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Search Unique Plan"
+            });
 
             var plans = await _subscrio.Plans.ListPlansAsync(new PlanFilterDto(
-                Search: "search-unique"
+                Search: plan.DisplayName
             ));
-            plans.Should().Contain(p => p.Key == "search-unique-plan");
+            plans.Should().Contain(p => p.Key == plan.Key);
         }
 
         [Fact]
@@ -574,20 +547,17 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "get-by-product" },
-                { "DisplayName", "Get By Product" }
+                ["DisplayName"] = "Get By Product"
             });
 
-            await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "plan-by-product-1",
-                DisplayName: "Plan 1"
-            ));
-            await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "plan-by-product-2",
-                DisplayName: "Plan 2"
-            ));
+            await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Plan 1"
+            });
+            await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Plan 2"
+            });
 
             var plans = await _subscrio.Plans.GetPlansByProductAsync(product.Key);
             plans.Should().HaveCount(2);
@@ -596,32 +566,29 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
 
     public class FeatureValueManagement : PlansTests
     {
-        public FeatureValueManagement(TestDatabaseFixture fixture) : base(fixture) { }
+        public FeatureValueManagement() : base() { }
 
         [Fact]
         public async Task SetsFeatureValueForPlan()
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "set-value-product" },
-                { "DisplayName", "Set Value Product" }
+                ["DisplayName"] = "Set Value Product"
             });
 
             var feature = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
             {
-                { "Key", "set-value-feature" },
-                { "DisplayName", "Set Value Feature" },
-                { "ValueType", "numeric" },
-                { "DefaultValue", "10" }
+                ["DisplayName"] = "Set Value Feature",
+                ["ValueType"] = "numeric",
+                ["DefaultValue"] = "10"
             });
 
             await _subscrio.Products.AssociateFeatureAsync(product.Key, feature.Key);
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "set-value-plan",
-                DisplayName: "Set Value Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Set Value Plan"
+            });
 
             await _subscrio.Plans.SetFeatureValueAsync(plan.Key, feature.Key, "50");
 
@@ -634,25 +601,22 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "update-value-product" },
-                { "DisplayName", "Update Value Product" }
+                ["DisplayName"] = "Update Value Product"
             });
 
             var feature = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
             {
-                { "Key", "update-value-feature" },
-                { "DisplayName", "Update Value Feature" },
-                { "ValueType", "numeric" },
-                { "DefaultValue", "10" }
+                ["DisplayName"] = "Update Value Feature",
+                ["ValueType"] = "numeric",
+                ["DefaultValue"] = "10"
             });
 
             await _subscrio.Products.AssociateFeatureAsync(product.Key, feature.Key);
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "update-value-plan",
-                DisplayName: "Update Value Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Update Value Plan"
+            });
 
             await _subscrio.Plans.SetFeatureValueAsync(plan.Key, feature.Key, "50");
             await _subscrio.Plans.SetFeatureValueAsync(plan.Key, feature.Key, "100");
@@ -666,25 +630,22 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "remove-value-product" },
-                { "DisplayName", "Remove Value Product" }
+                ["DisplayName"] = "Remove Value Product"
             });
 
             var feature = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
             {
-                { "Key", "remove-value-feature" },
-                { "DisplayName", "Remove Value Feature" },
-                { "ValueType", "numeric" },
-                { "DefaultValue", "10" }
+                ["DisplayName"] = "Remove Value Feature",
+                ["ValueType"] = "numeric",
+                ["DefaultValue"] = "10"
             });
 
             await _subscrio.Products.AssociateFeatureAsync(product.Key, feature.Key);
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "remove-value-plan",
-                DisplayName: "Remove Value Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Remove Value Plan"
+            });
 
             await _subscrio.Plans.SetFeatureValueAsync(plan.Key, feature.Key, "50");
             await _subscrio.Plans.RemoveFeatureValueAsync(plan.Key, feature.Key);
@@ -698,25 +659,22 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "get-value-product" },
-                { "DisplayName", "Get Value Product" }
+                ["DisplayName"] = "Get Value Product"
             });
 
             var feature = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
             {
-                { "Key", "get-value-feature" },
-                { "DisplayName", "Get Value Feature" },
-                { "ValueType", "toggle" },
-                { "DefaultValue", "false" }
+                ["DisplayName"] = "Get Value Feature",
+                ["ValueType"] = "toggle",
+                ["DefaultValue"] = "false"
             });
 
             await _subscrio.Products.AssociateFeatureAsync(product.Key, feature.Key);
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "get-value-plan",
-                DisplayName: "Get Value Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Get Value Plan"
+            });
 
             await _subscrio.Plans.SetFeatureValueAsync(plan.Key, feature.Key, "true");
 
@@ -729,25 +687,22 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "null-value-product" },
-                { "DisplayName", "Null Value Product" }
+                ["DisplayName"] = "Null Value Product"
             });
 
             var feature = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
             {
-                { "Key", "null-value-feature" },
-                { "DisplayName", "Null Value Feature" },
-                { "ValueType", "numeric" },
-                { "DefaultValue", "10" }
+                ["DisplayName"] = "Null Value Feature",
+                ["ValueType"] = "numeric",
+                ["DefaultValue"] = "10"
             });
 
             await _subscrio.Products.AssociateFeatureAsync(product.Key, feature.Key);
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "null-value-plan",
-                DisplayName: "Null Value Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Null Value Plan"
+            });
 
             var value = await _subscrio.Plans.GetFeatureValueAsync(plan.Key, feature.Key);
             value.Should().BeNull();
@@ -758,34 +713,30 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "all-features-product" },
-                { "DisplayName", "All Features Product" }
+                ["DisplayName"] = "All Features Product"
             });
 
             var feature1 = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
             {
-                { "Key", "all-features-1" },
-                { "DisplayName", "All Features 1" },
-                { "ValueType", "numeric" },
-                { "DefaultValue", "10" }
+                ["DisplayName"] = "All Features 1",
+                ["ValueType"] = "numeric",
+                ["DefaultValue"] = "10"
             });
 
             var feature2 = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
             {
-                { "Key", "all-features-2" },
-                { "DisplayName", "All Features 2" },
-                { "ValueType", "toggle" },
-                { "DefaultValue", "false" }
+                ["DisplayName"] = "All Features 2",
+                ["ValueType"] = "toggle",
+                ["DefaultValue"] = "false"
             });
 
             await _subscrio.Products.AssociateFeatureAsync(product.Key, feature1.Key);
             await _subscrio.Products.AssociateFeatureAsync(product.Key, feature2.Key);
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "all-features-plan",
-                DisplayName: "All Features Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "All Features Plan"
+            });
 
             await _subscrio.Plans.SetFeatureValueAsync(plan.Key, feature1.Key, "50");
             await _subscrio.Plans.SetFeatureValueAsync(plan.Key, feature2.Key, "true");
@@ -801,15 +752,13 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         {
             var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "error-feature-product" },
-                { "DisplayName", "Error Feature Product" }
+                ["DisplayName"] = "Error Feature Product"
             });
 
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: "error-feature-plan",
-                DisplayName: "Error Feature Plan"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = "Error Feature Plan"
+            });
 
             await Assert.ThrowsAsync<NotFoundException>(async () =>
                 await _subscrio.Plans.SetFeatureValueAsync(plan.Key, "non-existent-feature", "50")
@@ -819,18 +768,16 @@ public class PlansTests : IClassFixture<TestDatabaseFixture>
         [Fact]
         public async Task ThrowsErrorWhenSettingValueForNonExistentPlan()
         {
-            var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+            await _fixtures.CreateProductAsync(new Dictionary<string, object>
             {
-                { "Key", "error-plan-feature-product" },
-                { "DisplayName", "Error Plan Feature Product" }
+                ["DisplayName"] = "Error Plan Feature Product"
             });
 
             var feature = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
             {
-                { "Key", "error-plan-feature" },
-                { "DisplayName", "Error Plan Feature" },
-                { "ValueType", "numeric" },
-                { "DefaultValue", "10" }
+                ["DisplayName"] = "Error Plan Feature",
+                ["ValueType"] = "numeric",
+                ["DefaultValue"] = "10"
             });
 
             await Assert.ThrowsAsync<NotFoundException>(async () =>

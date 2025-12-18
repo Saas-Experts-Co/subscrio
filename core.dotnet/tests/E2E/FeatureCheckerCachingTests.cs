@@ -1,20 +1,38 @@
 using FluentAssertions;
 using Subscrio.Core;
 using Subscrio.Core.Application.DTOs;
+using Subscrio.Core.Config;
+using Subscrio.Core.Domain.ValueObjects;
 using Subscrio.Core.Tests.Setup;
+using System.Collections.Generic;
 using Xunit;
 
 namespace Subscrio.Core.Tests.E2E;
 
-[Collection("Database")]
-public class FeatureCheckerCachingTests : IClassFixture<TestDatabaseFixture>
+public class FeatureCheckerCachingTests
 {
     private readonly Subscrio _subscrio;
     private readonly TestFixtures _fixtures;
 
-    public FeatureCheckerCachingTests(TestDatabaseFixture fixture)
+    public FeatureCheckerCachingTests()
     {
-        _subscrio = fixture.Subscrio;
+        // Ensure database is initialized
+        TestDatabaseAssemblyFixture.EnsureInitialized();
+        
+        // Create Subscrio instance with test database connection
+        var connectionString = TestDatabaseAssemblyFixture.GetTestConnectionString();
+        var config = new SubscrioConfig
+        {
+            Database = new DatabaseConfig
+            {
+                ConnectionString = connectionString,
+                Ssl = false,
+                PoolSize = 10,
+                DatabaseType = DatabaseType.PostgreSQL
+            }
+        };
+        
+        _subscrio = new Subscrio(config);
         _fixtures = new TestFixtures(_subscrio);
     }
 
@@ -22,18 +40,18 @@ public class FeatureCheckerCachingTests : IClassFixture<TestDatabaseFixture>
     public async Task ResolvesFeaturesForMultipleSubscriptionsEfficiently()
     {
         // Create a product with multiple plans
-        var product = await _subscrio.Products.CreateProductAsync(new CreateProductDto(
-            Key: "caching-test-product",
-            DisplayName: "Caching Test Product"
-        ));
+        var product = await _fixtures.CreateProductAsync(new Dictionary<string, object>
+        {
+            ["DisplayName"] = "Caching Test Product"
+        });
 
         // Create feature
-        var feature = await _subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
-            Key: "test-feature",
-            DisplayName: "Test Feature",
-            ValueType: "toggle",
-            DefaultValue: "false"
-        ));
+        var feature = await _fixtures.CreateFeatureAsync(new Dictionary<string, object>
+        {
+            ["DisplayName"] = "Test Feature",
+            ["ValueType"] = "toggle",
+            ["DefaultValue"] = "false"
+        });
 
         await _subscrio.Products.AssociateFeatureAsync(product.Key, feature.Key);
 
@@ -41,38 +59,35 @@ public class FeatureCheckerCachingTests : IClassFixture<TestDatabaseFixture>
         var plans = new List<PlanDto>();
         for (int i = 0; i < 3; i++)
         {
-            var plan = await _subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
-                ProductKey: product.Key,
-                Key: $"plan-{i}",
-                DisplayName: $"Plan {i}"
-            ));
+            var plan = await _fixtures.CreatePlanAsync(product.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = $"Plan {i}"
+            });
             plans.Add(plan);
             await _subscrio.Plans.SetFeatureValueAsync(plan.Key, feature.Key, "true");
         }
 
         // Create customer with multiple subscriptions
-        var customer = await _subscrio.Customers.CreateCustomerAsync(new CreateCustomerDto(
-            Key: "caching-test-customer",
-            DisplayName: "Caching Test Customer"
-        ));
+        var customer = await _fixtures.CreateCustomerAsync(new Dictionary<string, object>
+        {
+            ["DisplayName"] = "Caching Test Customer"
+        });
 
         // Create subscriptions for all plans
         var subscriptions = new List<SubscriptionDto>();
         for (int i = 0; i < plans.Count; i++)
         {
             var plan = plans[i];
-            var billingCycle = await _subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
-                PlanKey: plan.Key,
-                Key: $"caching-cycle-{i}",
-                DisplayName: $"Caching Cycle {i}",
-                DurationUnit: "month"
-            ));
+            var billingCycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
+            {
+                ["DisplayName"] = $"Caching Cycle {i}",
+                ["DurationUnit"] = "month"
+            });
 
-            var subscription = await _subscrio.Subscriptions.CreateSubscriptionAsync(new CreateSubscriptionDto(
-                Key: $"sub-{i}",
-                CustomerKey: customer.Key,
-                BillingCycleKey: billingCycle.Key
-            ));
+            var subscription = await _fixtures.CreateSubscriptionAsync(
+                customer.Key,
+                billingCycle.Key
+            );
             subscriptions.Add(subscription);
         }
 
