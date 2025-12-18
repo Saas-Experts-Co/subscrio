@@ -95,16 +95,29 @@ Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=postgres
 
 ### 3. Run Tests
 
-**From the repository root:**
+**IMPORTANT**: The test project targets multiple frameworks (net8.0, net9.0, net10.0). When you run `dotnet test` without specifying a framework, the test SDK runs all frameworks in parallel, which can exhaust the PostgreSQL connection pool.
+
+**Recommended: Run one framework at a time (built-in, no script needed)**
 ```powershell
 cd core.dotnet\tests
-dotnet test
+dotnet test -f net8.0
+dotnet test -f net9.0
+dotnet test -f net10.0
 ```
 
-**Or from the repository root:**
+**Alternative: Use convenience script**
 ```powershell
-dotnet test core.dotnet\tests\Subscrio.Core.Tests.csproj
+cd core.dotnet\tests
+.\run-tests-sequential.ps1
 ```
+
+**Not Recommended: Run all frameworks in parallel**
+```powershell
+cd core.dotnet\tests
+dotnet test  # May cause "too many clients already" errors
+```
+
+**Why?** The test SDK doesn't provide a built-in way to run multi-targeted tests sequentially from the project file. Running each framework separately with `-f` is the simplest and most reliable approach.
 
 ### 4. Run Tests with Output
 
@@ -176,7 +189,7 @@ tests/
 Each test file follows this pattern:
 
 ```csharp
-public class ProductsTests
+public class ProductsTests : IDisposable
 {
     private readonly Subscrio _subscrio;
     private readonly TestFixtures _fixtures;
@@ -194,13 +207,18 @@ public class ProductsTests
             {
                 ConnectionString = connectionString,
                 Ssl = false,
-                PoolSize = 10,
+                PoolSize = 5, // Reduced pool size for tests to avoid connection exhaustion
                 DatabaseType = DatabaseType.PostgreSQL
             }
         };
         
         _subscrio = new Subscrio(config);
         _fixtures = new TestFixtures(_subscrio);
+    }
+
+    public void Dispose()
+    {
+        _subscrio?.Dispose(); // Properly close database connections
     }
 
     [Fact]
@@ -539,11 +557,14 @@ psql -U postgres -c "CREATE DATABASE postgres;"
 - Tests run sequentially (xUnit default)
 - Use `KEEP_TEST_DB=true` to preserve test database for investigation
 
-### "Too many connections"
-- PostgreSQL may have connection limit reached
-- Check active connections: `SELECT count(*) FROM pg_stat_activity;`
-- Assembly fixture includes cleanup of dangling test databases
-- Terminate zombie connections from failed test runs
+### "Too many clients already" / "Too many connections"
+- **Root Cause**: Running tests for multiple frameworks in parallel can exhaust PostgreSQL connection pool
+- **Solution**: Run tests sequentially using `.\run-tests-sequential.ps1` or run one framework at a time with `dotnet test -f net8.0`
+- **Connection Management**: All test classes implement `IDisposable` to properly close database connections
+- **Pool Size**: Test classes use reduced pool size (5) to minimize connection usage
+- **Check active connections**: `SELECT count(*) FROM pg_stat_activity;`
+- **Assembly fixture**: Includes cleanup of dangling test databases
+- **Terminate zombie connections**: From failed test runs using `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname LIKE 'subscrio_test%';`
 
 ### Test Database Issues
 - **Keep test database for debugging**: `$env:KEEP_TEST_DB = "true"; dotnet test`
@@ -598,9 +619,20 @@ psql -U postgres -c "CREATE DATABASE postgres;"
 
 ## Running Tests from Command Line
 
-**Run all tests:**
+**Run all tests sequentially (recommended):**
+```powershell
+cd core.dotnet\tests
+.\run-tests-sequential.ps1
+```
+
+**Run all tests (may hit connection limits with multiple frameworks):**
 ```powershell
 dotnet test core.dotnet\tests\Subscrio.Core.Tests.csproj
+```
+
+**Run tests for specific framework:**
+```powershell
+dotnet test core.dotnet\tests\Subscrio.Core.Tests.csproj -f net8.0
 ```
 
 **Run with detailed output:**

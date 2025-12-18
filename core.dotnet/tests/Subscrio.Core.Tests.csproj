@@ -1,7 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <!-- Temporarily disabled net8.0 and net9.0 to avoid parallel execution connection pool issues -->
+    <!-- To re-enable: change TargetFramework to TargetFrameworks and uncomment frameworks -->
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks> -->
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>

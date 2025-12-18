@@ -10,7 +10,7 @@ using Xunit;
 
 namespace Subscrio.Core.Tests.E2E;
 
-public class SubscriptionsTests
+public class SubscriptionsTests : IDisposable
 {
     private readonly Subscrio _subscrio;
     private readonly TestFixtures _fixtures;
@@ -28,13 +28,18 @@ public class SubscriptionsTests
             {
                 ConnectionString = connectionString,
                 Ssl = false,
-                PoolSize = 10,
+                PoolSize = 5, // Reduced pool size for tests
                 DatabaseType = DatabaseType.PostgreSQL
             }
         };
         
         _subscrio = new Subscrio(config);
         _fixtures = new TestFixtures(_subscrio);
+    }
+
+    public void Dispose()
+    {
+        _subscrio?.Dispose();
     }
 
     public class CrudOperations : SubscriptionsTests

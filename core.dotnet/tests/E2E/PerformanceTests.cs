@@ -9,7 +9,7 @@ using Xunit;
 
 namespace Subscrio.Core.Tests.E2E;
 
-public class PerformanceTests
+public class PerformanceTests : IDisposable
 {
     private readonly Subscrio _subscrio;
     private readonly TestFixtures _fixtures;
@@ -27,13 +27,18 @@ public class PerformanceTests
             {
                 ConnectionString = connectionString,
                 Ssl = false,
-                PoolSize = 10,
+                PoolSize = 5, // Reduced pool size for tests
                 DatabaseType = DatabaseType.PostgreSQL
             }
         };
         
         _subscrio = new Subscrio(config);
         _fixtures = new TestFixtures(_subscrio);
+    }
+
+    public void Dispose()
+    {
+        _subscrio?.Dispose();
     }
 
     [Fact]
@@ -102,7 +107,7 @@ public class PerformanceTests
         var billingCycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
         {
             ["DisplayName"] = "Performance Cycle",
-            ["DurationUnit"] = "month"
+                ["DurationUnit"] = "months"
         });
 
         await _fixtures.CreateSubscriptionAsync(

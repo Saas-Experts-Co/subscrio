@@ -9,7 +9,7 @@ using Xunit;
 
 namespace Subscrio.Core.Tests.E2E;
 
-public class FeatureCheckerTests
+public class FeatureCheckerTests : IDisposable
 {
     private readonly Subscrio _subscrio;
     private readonly TestFixtures _fixtures;
@@ -27,13 +27,18 @@ public class FeatureCheckerTests
             {
                 ConnectionString = connectionString,
                 Ssl = false,
-                PoolSize = 10,
+                PoolSize = 5, // Reduced pool size for tests
                 DatabaseType = DatabaseType.PostgreSQL
             }
         };
         
         _subscrio = new Subscrio(config);
         _fixtures = new TestFixtures(_subscrio);
+    }
+
+    public void Dispose()
+    {
+        _subscrio?.Dispose();
     }
 
     public class BasicResolution : FeatureCheckerTests
@@ -98,7 +103,7 @@ public class FeatureCheckerTests
             var billingCycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
             {
                 ["DisplayName"] = "Test Monthly FC",
-                ["DurationUnit"] = "month"
+                ["DurationUnit"] = "months"
             });
 
             // Set plan value
@@ -148,7 +153,7 @@ public class FeatureCheckerTests
             var billingCycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
             {
                 ["DisplayName"] = "Test Monthly FC",
-                ["DurationUnit"] = "month"
+                ["DurationUnit"] = "months"
             });
 
             await _subscrio.Plans.SetFeatureValueAsync(plan.Key, feature.Key, "1000");
@@ -247,7 +252,7 @@ public class FeatureCheckerTests
             var billingCycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
             {
                 ["DisplayName"] = "Test Monthly FC",
-                ["DurationUnit"] = "month"
+                ["DurationUnit"] = "months"
             });
 
             await _subscrio.Plans.SetFeatureValueAsync(plan.Key, feature.Key, "10");
@@ -304,7 +309,7 @@ public class FeatureCheckerTests
             var billingCycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
             {
                 ["DisplayName"] = "Test Monthly FC",
-                ["DurationUnit"] = "month"
+                ["DurationUnit"] = "months"
             });
 
             await _subscrio.Plans.SetFeatureValueAsync(plan.Key, feature.Key, "100");
@@ -353,7 +358,7 @@ public class FeatureCheckerTests
             var billingCycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
             {
                 ["DisplayName"] = "Test Monthly FC",
-                ["DurationUnit"] = "month"
+                ["DurationUnit"] = "months"
             });
 
             // Don't set plan value - should use default
@@ -416,7 +421,7 @@ public class FeatureCheckerTests
             var billingCycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
             {
                 ["DisplayName"] = "Monthly",
-                ["DurationUnit"] = "month"
+                ["DurationUnit"] = "months"
             });
 
             // 7. Create subscription

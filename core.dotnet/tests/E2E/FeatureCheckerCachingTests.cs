@@ -9,7 +9,7 @@ using Xunit;
 
 namespace Subscrio.Core.Tests.E2E;
 
-public class FeatureCheckerCachingTests
+public class FeatureCheckerCachingTests : IDisposable
 {
     private readonly Subscrio _subscrio;
     private readonly TestFixtures _fixtures;
@@ -27,13 +27,18 @@ public class FeatureCheckerCachingTests
             {
                 ConnectionString = connectionString,
                 Ssl = false,
-                PoolSize = 10,
+                PoolSize = 5, // Reduced pool size for tests
                 DatabaseType = DatabaseType.PostgreSQL
             }
         };
         
         _subscrio = new Subscrio(config);
         _fixtures = new TestFixtures(_subscrio);
+    }
+
+    public void Dispose()
+    {
+        _subscrio?.Dispose();
     }
 
     [Fact]
@@ -81,7 +86,7 @@ public class FeatureCheckerCachingTests
             var billingCycle = await _fixtures.CreateBillingCycleAsync(plan.Key, new Dictionary<string, object>
             {
                 ["DisplayName"] = $"Caching Cycle {i}",
-                ["DurationUnit"] = "month"
+                ["DurationUnit"] = "months"
             });
 
             var subscription = await _fixtures.CreateSubscriptionAsync(

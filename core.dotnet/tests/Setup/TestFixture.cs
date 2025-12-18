@@ -128,6 +128,16 @@ public class TestFixtures
             ? overrides["Key"].ToString()! 
             : $"billing-cycle-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
 
+        int? durationValue = null;
+        if (overrides?.ContainsKey("DurationValue") == true)
+        {
+            durationValue = Convert.ToInt32(overrides["DurationValue"]);
+        }
+        else
+        {
+            durationValue = 1; // Default to 1 for non-forever billing cycles
+        }
+
         var dto = new CreateBillingCycleDto(
             PlanKey: planKey,
             Key: key,
@@ -136,13 +146,11 @@ public class TestFixtures
                 : "Test Billing Cycle",
             DurationUnit: overrides?.ContainsKey("DurationUnit") == true 
                 ? overrides["DurationUnit"].ToString()! 
-                : "month",
+                : "months",
             Description: overrides?.ContainsKey("Description") == true 
                 ? overrides["Description"].ToString() 
                 : null,
-            DurationValue: overrides?.ContainsKey("DurationValue") == true 
-                ? (int?)overrides["DurationValue"] 
-                : null,
+            DurationValue: durationValue,
             ExternalProductId: overrides?.ContainsKey("ExternalProductId") == true 
                 ? overrides["ExternalProductId"].ToString() 
                 : null

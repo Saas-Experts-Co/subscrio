@@ -19,6 +19,10 @@ public static class DatabaseInitializer
         var optionsBuilder = new DbContextOptionsBuilder<SubscrioDbContext>();
         NpgsqlDataSource? dataSource = null;
 
+        // Suppress EF Core warning about multiple service providers in test scenarios
+        optionsBuilder.ConfigureWarnings(warnings => 
+            warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.CoreEventId.ManyServiceProvidersCreatedWarning));
+
         switch (config.DatabaseType)
         {
             case DatabaseType.PostgreSQL:
