@@ -2,14 +2,9 @@
 
 A .NET implementation of the Subscrio subscription management library, providing comprehensive features for managing products, plans, features, customers, subscriptions, and billing cycles.
 
-## Supported .NET Versions
+**The entitlement engine that translates subscriptions into feature access.**
 
-This library supports the following .NET versions:
-- **.NET 8.0** (LTS - supported until November 2026)
-- **.NET 9.0**
-- **.NET 10.0**
-
-The library is multi-targeted, meaning a single NuGet package contains builds for all supported frameworks. The appropriate build will be automatically selected based on your project's target framework.
+See the [main README](../../README.md) for an overview of Subscrio's concepts and architecture.
 
 ## Features
 
@@ -22,6 +17,8 @@ The library is multi-targeted, meaning a single NuGet package contains builds fo
 - **Feature Resolution** - Hierarchical feature value resolution (Subscription Override > Plan Value > Feature Default)
 - **Stripe Integration** - Process Stripe webhooks and manage Stripe subscriptions
 - **Configuration Sync** - Import/export configuration from JSON
+
+For a complete overview of Subscrio's features and concepts, see the [main README](../../README.md).
 
 ## Installation
 
@@ -37,9 +34,13 @@ Or using the .NET CLI:
 dotnet add package Subscrio.Core
 ```
 
-## Quick Start
+**Prerequisites:**
+- .NET 8.0 (LTS - supported until November 2026), .NET 9.0, or .NET 10.0
+- PostgreSQL database (or SQL Server)
 
-### Manual Instantiation
+The library is multi-targeted, meaning a single NuGet package contains builds for all supported frameworks. The appropriate build will be automatically selected based on your project's target framework.
+
+## Quick Start
 
 ```csharp
 using Subscrio.Core;
@@ -48,22 +49,73 @@ using Subscrio.Core.Config;
 // Load configuration
 var config = ConfigLoader.Load();
 
-// Create Subscrio instance
+// Initialize the library
 var subscrio = new Subscrio(config);
 
-// Install schema (first time only)
+// Install database schema (first time only)
 await subscrio.InstallSchemaAsync("your-admin-passphrase");
 
-// Use the library
+// Create a product
 var product = await subscrio.Products.CreateProductAsync(new CreateProductDto(
-    Key: "my-product",
-    DisplayName: "My Product"
+    Key: "my-saas",
+    DisplayName: "My SaaS Product"
 ));
+
+// Create a feature
+var feature = await subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
+    Key: "max-users",
+    DisplayName: "Maximum Users",
+    ValueType: FeatureValueType.Numeric,
+    DefaultValue: "10"
+));
+
+// Associate feature with product (using keys, not IDs)
+await subscrio.Products.AssociateFeatureAsync(product.Key, feature.Key);
+
+// Create a plan (using productKey, not productId)
+var plan = await subscrio.Plans.CreatePlanAsync(new CreatePlanDto(
+    ProductKey: product.Key,
+    Key: "pro-plan",
+    DisplayName: "Pro Plan"
+));
+
+// Set feature value on plan (using keys, not IDs)
+await subscrio.Plans.SetFeatureValueAsync(plan.Key, feature.Key, "100");
+
+// Create a billing cycle for the plan (required for subscriptions)
+var billingCycle = await subscrio.BillingCycles.CreateBillingCycleAsync(new CreateBillingCycleDto(
+    PlanKey: plan.Key,
+    Key: "monthly",
+    DisplayName: "Monthly",
+    DurationValue: 1,
+    DurationUnit: "months"
+));
+
+// Create a customer (using key, not externalId)
+var customer = await subscrio.Customers.CreateCustomerAsync(new CreateCustomerDto(
+    Key: "customer-123",
+    DisplayName: "Acme Corp"
+));
+
+// Create a subscription (using keys and billingCycleKey, not IDs)
+var subscription = await subscrio.Subscriptions.CreateSubscriptionAsync(new CreateSubscriptionDto(
+    Key: "sub-001",
+    CustomerKey: customer.Key,
+    BillingCycleKey: billingCycle.Key
+));
+
+// Check feature access (requires customerKey, productKey, and featureKey)
+var maxUsers = await subscrio.FeatureChecker.GetValueForCustomerAsync(
+    customer.Key,
+    product.Key,
+    "max-users"
+);
+Console.WriteLine($"Customer can have {maxUsers} users"); // "100"
 ```
 
 ## Dependency Injection
 
-Subscrio supports dependency injection and can be registered in your DI container. This is the recommended approach for web applications and provides better lifetime management.
+Subscrio supports dependency injection and can be registered in your DI container. **This is the recommended approach for web applications** and provides better lifetime management.
 
 ### Registration
 
@@ -198,6 +250,26 @@ Subscrio creates its own `DbContext` internally when instantiated. This means:
 
 **Best Practice**: Use `ServiceLifetime.Scoped` for web applications to ensure proper isolation and resource management.
 
+## API Reference
+
+### Core Services
+
+- **`subscrio.Products`** - Product management
+- **`subscrio.Features`** - Feature flag management  
+- **`subscrio.Plans`** - Subscription plan management
+- **`subscrio.BillingCycles`** - Billing cycle management
+- **`subscrio.Customers`** - Customer management
+- **`subscrio.Subscriptions`** - Subscription lifecycle
+- **`subscrio.FeatureChecker`** - Feature access checking
+- **`subscrio.Stripe`** - Stripe integration
+
+### Instance Methods
+
+- **`InstallSchemaAsync(adminPassphrase)`** - Install database schema
+- **`VerifySchemaAsync()`** - Check if schema is installed (returns version string or null)
+- **`MigrateAsync()`** - Run database migrations
+- **`Dispose()`** - Clean up resources (implements IDisposable)
+
 ## Configuration
 
 ### Configuration Structure
@@ -244,6 +316,24 @@ var config = new SubscrioConfig
     }
 };
 ```
+
+### Core Services
+
+- **`subscrio.Products`** - Product management
+- **`subscrio.Features`** - Feature flag management  
+- **`subscrio.Plans`** - Subscription plan management
+- **`subscrio.BillingCycles`** - Billing cycle management
+- **`subscrio.Customers`** - Customer management
+- **`subscrio.Subscriptions`** - Subscription lifecycle
+- **`subscrio.FeatureChecker`** - Feature access checking
+- **`subscrio.Stripe`** - Stripe integration
+
+### Instance Methods
+
+- **`InstallSchemaAsync(adminPassphrase)`** - Install database schema
+- **`VerifySchemaAsync()`** - Check if schema is installed (returns version string or null)
+- **`MigrateAsync()`** - Run database migrations
+- **`Dispose()`** - Clean up resources (implements IDisposable)
 
 ## Database Setup
 
@@ -391,21 +481,44 @@ var allFeatures = await subscrio.FeatureChecker.GetAllFeaturesAsync(customer.Ext
 
 ## Feature Resolution Hierarchy
 
-Feature values are resolved in this order (highest to lowest priority):
-
-1. **Subscription Override** - Feature value set directly on the subscription
-2. **Plan Value** - Feature value set on the plan
-3. **Feature Default** - Default value defined on the feature
-
-This allows fine-grained control over feature access per customer while maintaining sensible defaults.
+Feature values are resolved using a smart hierarchy. See the [main README](../../README.md#feature-resolution-hierarchy) for details.
 
 ## Stripe Integration
+
+Subscrio integrates with Stripe for payment processing. See the [main README](../../README.md#stripe-integration) for an overview.
+
+**Important**: Subscrio does NOT verify Stripe webhook signatures. You must verify signatures before passing events to Subscrio.
 
 ### Process Stripe Webhooks
 
 ```csharp
+using Stripe;
+
 // In your webhook endpoint (after verifying Stripe signature)
-await subscrio.Stripe.ProcessStripeEventAsync(stripeEvent);
+[HttpPost("webhooks/stripe")]
+public async Task<IActionResult> HandleStripeWebhook()
+{
+    var json = await new StreamReader(Request.Body).ReadToEndAsync();
+    var stripeSignature = Request.Headers["Stripe-Signature"].ToString();
+    
+    try
+    {
+        // Verify webhook signature
+        var stripeEvent = EventUtility.ConstructEvent(
+            json,
+            stripeSignature,
+            _configuration["Stripe:WebhookSecret"]
+        );
+        
+        // Process verified event
+        await _subscrio.Stripe.ProcessStripeEventAsync(stripeEvent);
+        return Ok(new { received = true });
+    }
+    catch (StripeException ex)
+    {
+        return BadRequest(new { error = ex.Message });
+    }
+}
 ```
 
 ### Create Stripe Subscription
@@ -418,6 +531,52 @@ var subscription = await subscrio.Stripe.CreateStripeSubscriptionAsync(
 );
 ```
 
+## .NET Support
+
+Full .NET support with comprehensive type definitions and async/await patterns:
+
+```csharp
+using Subscrio.Core;
+using Subscrio.Core.Dtos;
+
+// All APIs are fully typed
+ProductDto product = await subscrio.Products.CreateProductAsync(new CreateProductDto(
+    Key: "my-product",
+    DisplayName: "My Product"
+));
+
+// DTOs are strongly typed
+var feature = await subscrio.Features.CreateFeatureAsync(new CreateFeatureDto(
+    Key: "max-projects",
+    DisplayName: "Max Projects",
+    ValueType: FeatureValueType.Numeric,
+    DefaultValue: "10"
+));
+```
+
+### Key Concepts
+
+**Keys vs IDs**: All public APIs use **keys** (string identifiers like `"my-product"`) rather than internal IDs. Keys are:
+- Human-readable and memorable
+- Globally unique within their scope
+- Immutable once created
+- Used in all method calls and references
+
+**DTOs**: All create/update operations use DTOs (Data Transfer Objects) with validation:
+- `CreateProductDto`, `CreateFeatureDto`, `CreatePlanDto`, etc.
+- All fields are validated before processing
+- Type-safe with full C# type inference
+
+**Async/Await**: All operations are asynchronous:
+- All methods return `Task<T>` or `Task`
+- Use `await` for all Subscrio operations
+- Proper async/await patterns throughout
+
+**Dependency Injection**: Recommended for web applications:
+- Register with `AddSubscrio()` extension method
+- Use `ServiceLifetime.Scoped` for web apps
+- Automatic resource management
+
 ## Best Practices
 
 1. **Use Dependency Injection** - Register Subscrio with `AddSubscrio()` in web applications
@@ -426,9 +585,21 @@ var subscription = await subscrio.Stripe.CreateStripeSubscriptionAsync(
 4. **Error Handling** - Handle `ValidationException`, `NotFoundException`, `ConflictException` appropriately
 5. **Feature Keys** - Use lowercase alphanumeric keys with hyphens (e.g., `max-projects`)
 6. **Customer External IDs** - Use your own customer identifiers for easy integration
+7. **Database Connections** - Subscrio manages its own DbContext lifecycle based on service lifetime
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Contributing
+
+Contributions are welcome! Please see our [Contributing Guide](https://github.com/Saas-Experts-Co/subscrio/blob/main/CONTRIBUTING.md) for details.
 
 ## Support
 
-- See [tests/README.md](tests/README.md) for testing guide
-- See [requirements/requirements.md](../../requirements/requirements.md) for full specifications
+- 📖 [Main Documentation](../../README.md)
+- 🐛 [Report Issues](https://github.com/Saas-Experts-Co/subscrio/issues)
+- 💬 [Discussions](https://github.com/Saas-Experts-Co/subscrio/discussions)
+- 📚 [Testing Guide](tests/README.md)
+- 📋 [Full Specifications](../../requirements/requirements.md)
 

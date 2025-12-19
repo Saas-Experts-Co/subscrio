@@ -65,8 +65,9 @@ Sales teams can grant custom overrides, product teams can experiment with new pl
 ✅ **Override System**: Temporary and permanent feature overrides  
 ✅ **Status Calculation**: Dynamic subscription status based on dates  
 ✅ **Production Ready**: Battle-tested with comprehensive error handling  
-✅ **Type Safety**: Full TypeScript support with compile-time validation  
+✅ **Type Safety**: Full type safety with compile-time validation (TypeScript/C#)  
 ✅ **Business Flexibility**: Change plans and grant exceptions without deployments  
+✅ **Database Agnostic**: PostgreSQL support (SQL Server support in .NET)  
 
 ## Core Concepts
 
@@ -83,34 +84,53 @@ Sales teams can grant custom overrides, product teams can experiment with new pl
 **Subscriptions** - Active relationships between customers and plans, with dynamic status calculation
 
 **Feature Resolution Hierarchy:**
-1. Subscription Override (highest priority)
-2. Plan Value  
-3. Feature Default (fallback)
+Feature values are resolved in this exact order (highest to lowest priority):
+1. **Subscription Override** - Feature value set directly on the subscription (highest priority)
+2. **Plan Value** - Feature value set on the plan
+3. **Feature Default** - Default value defined on the feature (fallback)
+
+This allows fine-grained control over feature access per customer while maintaining sensible defaults.
 
 **Subscription Status** - Calculated dynamically based on dates and cancellation state
 
 ## Language Implementations
 
 - **TypeScript**: `core.typescript/` - Full-featured TypeScript/Node.js implementation
-- **Rust**: `core.rust/` - High-performance Rust implementation (planned)
-- **.NET**: `core.net/` - C#/.NET implementation (planned)
+- **.NET**: `core.dotnet/` - C#/.NET implementation with Entity Framework Core
+- **Rust**: `core.rust/` - High-performance Rust implementation (COMING SOON)
 
 ## Getting Started
 
 Each language implementation has its own directory with specific setup instructions:
 
-- [TypeScript Implementation](./core.typescript/README.md)
-- Rust Implementation (coming soon)
-- .NET Implementation (coming soon)
+- [TypeScript Implementation](./core.typescript/README.md) - npm package `@saas-experts/subscrio`
+- [.NET Implementation](./core.dotnet/README.md) - NuGet package `Subscrio.Core`
+- Rust Implementation (COMING SOON)
 
 ## Architecture
 
-All implementations share the same core concepts:
-- Product and Plan management
-- Feature-based entitlements
-- Subscription lifecycle management
-- Stripe integration
-- Multi-tenant support
+All implementations share the same core concepts and architecture:
+- **Product and Plan Management** - Organize features into products and pricing tiers
+- **Feature-Based Entitlements** - Define capabilities as features with configurable values
+- **Subscription Lifecycle Management** - Handle trials, renewals, cancellations, and status transitions
+- **Stripe Integration** - Process webhooks and sync subscription data (optional)
+- **Multi-Tenant Support** - Customers can have multiple active subscriptions
+- **Feature Resolution** - Automatic hierarchy resolution for feature values
+- **Override System** - Temporary and permanent feature overrides per subscription
+
+## Stripe Integration
+
+Subscrio integrates with Stripe for payment processing. The integration is **optional** - Subscrio works perfectly without Stripe.
+
+**Important**: Subscrio does NOT verify Stripe webhook signatures. The implementor must verify webhook signatures before passing events to Subscrio. See the language-specific READMEs for implementation details.
+
+**Supported Stripe Events:**
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `invoice.payment_succeeded`
+- `invoice.payment_failed`
+- `customer.subscription.trial_will_end`
 
 ## Contributing
 

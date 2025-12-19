@@ -1,6 +1,10 @@
 # @saas-experts/subscrio
 
-A comprehensive TypeScript library for subscription management, feature flags, billing cycles, and Stripe integration.
+A comprehensive TypeScript/Node.js library for subscription management, feature entitlements, billing cycles, and Stripe integration.
+
+**The entitlement engine that translates subscriptions into feature access.**
+
+See the [main README](../../README.md) for an overview of Subscrio's concepts and architecture.
 
 [![npm version](https://badge.fury.io/js/@saas-experts%2Fsubscrio.svg)](https://badge.fury.io/js/@saas-experts%2Fsubscrio)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -14,6 +18,8 @@ A comprehensive TypeScript library for subscription management, feature flags, b
 - 🗄️ **PostgreSQL Ready** - Built on Drizzle ORM with full type safety
 - 📊 **Feature Resolution** - Smart hierarchy: subscription overrides → plan values → defaults
 - ⚡ **TypeScript First** - Full type safety and excellent developer experience
+
+For a complete overview of Subscrio's features and concepts, see the [main README](../../README.md).
 
 ## Installation
 
@@ -141,11 +147,7 @@ const subscrio = new Subscrio({
 
 ## Feature Resolution Hierarchy
 
-Subscrio uses a smart hierarchy for feature values:
-
-1. **Subscription Override** (highest priority)
-2. **Plan Value** 
-3. **Feature Default** (fallback)
+Subscrio uses a smart hierarchy for feature values. See the [main README](../../README.md#feature-resolution-hierarchy) for details.
 
 ```typescript
 // Check if feature is enabled for a customer in a product
@@ -171,13 +173,38 @@ const value = await subscrio.featureChecker.getValueForSubscription(
 
 ## Stripe Integration
 
+Subscrio integrates with Stripe for payment processing. See the [main README](../../README.md#stripe-integration) for an overview.
+
+**Important**: Subscrio does NOT verify Stripe webhook signatures. You must verify signatures before passing events to Subscrio.
+
 ```typescript
+import Stripe from 'stripe';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
 // Process Stripe webhooks (implementor handles verification)
-app.post('/webhooks/stripe', express.raw({type: 'application/json'}), async (req, res) => {
-  const event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
-  await subscrio.stripe.processStripeEvent(event);
-  res.json({received: true});
-});
+app.post('/webhooks/stripe', 
+  express.raw({type: 'application/json'}), 
+  async (req, res) => {
+    const sig = req.headers['stripe-signature'] as string;
+    
+    try {
+      // Verify webhook signature
+      const event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+      
+      // Process verified event
+      await subscrio.stripe.processStripeEvent(event);
+      res.json({received: true});
+    } catch (err) {
+      console.error('Webhook error:', err.message);
+      res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+  }
+);
 ```
 
 ## TypeScript Support
@@ -222,6 +249,14 @@ const product: ProductDto = await subscrio.products.createProduct({
 - All fields are validated before processing
 - Type-safe with full TypeScript inference
 
+## Best Practices
+
+1. **Schema Installation** - Run `installSchema()` once during application startup
+2. **Error Handling** - Handle `ValidationError`, `NotFoundError`, `ConflictError` appropriately
+3. **Feature Keys** - Use lowercase alphanumeric keys with hyphens (e.g., `max-projects`)
+4. **Customer Keys** - Use your own customer identifiers for easy integration
+5. **Database Connections** - Close connections with `subscrio.close()` when shutting down
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
@@ -232,6 +267,6 @@ Contributions are welcome! Please see our [Contributing Guide](https://github.co
 
 ## Support
 
-- 📖 [Documentation](https://github.com/Saas-Experts-Co/subscrio#readme)
+- 📖 [Main Documentation](../../README.md)
 - 🐛 [Report Issues](https://github.com/Saas-Experts-Co/subscrio/issues)
 - 💬 [Discussions](https://github.com/Saas-Experts-Co/subscrio/discussions)
