@@ -1,24 +1,10 @@
 # Subscrio .NET Core Library
 
-A .NET implementation of the Subscrio subscription management library, providing comprehensive features for managing products, plans, features, customers, subscriptions, and billing cycles.
+A .NET implementation of the Subscrio subscription management library for managing products, plans, features, customers, subscriptions, and billing cycles.
 
 **The entitlement engine that translates subscriptions into feature access.**
 
-See the [main README](../../README.md) for an overview of Subscrio's concepts and architecture.
-
-## Features
-
-- **Product Management** - Create and manage products with features
-- **Feature Management** - Define features with different value types (toggle, numeric, text)
-- **Plan Management** - Create plans with feature values and billing cycles
-- **Customer Management** - Manage customer records and external IDs
-- **Subscription Management** - Handle subscriptions with feature overrides
-- **Billing Cycle Management** - Define billing cycles (monthly, yearly, etc.)
-- **Feature Resolution** - Hierarchical feature value resolution (Subscription Override > Plan Value > Feature Default)
-- **Stripe Integration** - Process Stripe webhooks and manage Stripe subscriptions
-- **Configuration Sync** - Import/export configuration from JSON
-
-For a complete overview of Subscrio's features and concepts, see the [main README](../../README.md).
+See the [main README](../../README.md) for an overview of Subscrio's concepts, architecture, and features.
 
 ## Installation
 
@@ -36,9 +22,89 @@ dotnet add package Subscrio.Core
 
 **Prerequisites:**
 - .NET 8.0 (LTS - supported until November 2026), .NET 9.0, or .NET 10.0
-- PostgreSQL database (or SQL Server)
+- PostgreSQL or SQL Server database
 
-The library is multi-targeted, meaning a single NuGet package contains builds for all supported frameworks. The appropriate build will be automatically selected based on your project's target framework.
+The library is multi-targeted: one NuGet package includes builds for all supported frameworks; the correct one is chosen by your project's target framework.
+
+## Database and connection
+
+### Creating the database
+
+You need a database before using Subscrio. The library does not create the database itself; it only installs and updates schema inside an existing database.
+
+**PostgreSQL**
+
+- Create a database (e.g. `subscrio`) using `psql`, pgAdmin, or your host’s tooling.
+- Example with `psql`:
+  ```bash
+  psql -U postgres -c "CREATE DATABASE subscrio;"
+  ```
+- Ensure the user in your connection string has rights to create tables and run migrations in that database.
+
+**SQL Server**
+
+- Create a database (e.g. `Subscrio`) in SQL Server Management Studio or with T-SQL:
+  ```sql
+  CREATE DATABASE Subscrio;
+  ```
+- The login in your connection string must have permission to create tables and run migrations in that database.
+
+### Setting the connection string
+
+Set the connection string in one of these ways:
+
+1. **Environment variable (recommended for local and production)**  
+   Set `DATABASE_URL`:
+   - **PostgreSQL:** `Host=localhost;Port=5432;Database=subscrio;Username=postgres;Password=yourpassword`
+   - **SQL Server:** `Server=localhost;Database=Subscrio;User Id=sa;Password=yourpassword;TrustServerCertificate=true`
+
+2. **`ConfigLoader.Load()`**  
+   `ConfigLoader.Load()` reads `DATABASE_URL` (and optionally `DATABASE_TYPE`, `STRIPE_SECRET_KEY`) from the process environment. Use this when you configure the app via env vars or launchSettings.
+
+3. **Explicit config in code**  
+   Build a `SubscrioConfig` and set `Database.ConnectionString` and `Database.DatabaseType` (e.g. `DatabaseType.PostgreSQL` or `DatabaseType.SqlServer`). Use this for custom config sources (e.g. key vault, appsettings).
+
+4. **ASP.NET Core appsettings**  
+   You can load connection strings from `appsettings.json` or other configuration and pass them into the constructor or into the object you use to build `SubscrioConfig`.
+
+After the database exists and the connection string is set, use **Database setup and migrations** below to install or update the schema.
+
+## Building the library and NuGet
+
+### Build the project
+
+From the repo root or from `core.dotnet`:
+
+```bash
+cd core.dotnet
+dotnet build
+```
+
+To build the solution (library, tests, sample):
+
+```bash
+dotnet build Subscrio.Core.sln
+```
+
+Outputs go to `src/bin/Debug/<TargetFramework>/` (or `Release` when built in Release). The library is multi-targeted (`net8.0`, `net9.0`, `net10.0`), so each framework has its own folder.
+
+### Build the NuGet package
+
+From `core.dotnet` (or the solution directory):
+
+```bash
+dotnet pack src/Subscrio.Core.csproj -c Release
+```
+
+The `.nupkg` is produced under `src/bin/Release/`. To ship a NuGet package you typically add `PackageId`, `Version`, and optionally `Description`, `Authors`, etc. to `Subscrio.Core.csproj` (or a `Directory.Build.props`), then run the same `dotnet pack`; you can push with `dotnet nuget push` to a feed.
+
+### Run tests
+
+```bash
+dotnet test Subscrio.Core.sln
+```
+
+Tests expect a running PostgreSQL instance and use the connection string from the `TEST_DATABASE_URL` environment variable (or a default local connection string). See `tests/README.md` for test setup.
 
 ## Quick Start
 
@@ -317,34 +383,27 @@ var config = new SubscrioConfig
 };
 ```
 
-### Core Services
+## Database setup and migrations
 
-- **`subscrio.Products`** - Product management
-- **`subscrio.Features`** - Feature flag management  
-- **`subscrio.Plans`** - Subscription plan management
-- **`subscrio.BillingCycles`** - Billing cycle management
-- **`subscrio.Customers`** - Customer management
-- **`subscrio.Subscriptions`** - Subscription lifecycle
-- **`subscrio.FeatureChecker`** - Feature access checking
-- **`subscrio.Stripe`** - Stripe integration
+Summary of how to get the database ready and keep it up to date:
 
-### Instance Methods
+| Step | When | What to do |
+|------|------|------------|
+| 1. Create DB | Once | Create an empty PostgreSQL or SQL Server database (see [Database and connection](#database-and-connection)). |
+| 2. Connection string | Once | Set `DATABASE_URL` (or pass `SubscrioConfig` with `Database.ConnectionString`). |
+| 3. Install schema | First run only | Call `InstallSchemaAsync(adminPassphrase)` to create all tables and seed the admin passphrase. |
+| 4. Migrate | After library updates | Call `MigrateAsync()` to apply any new migrations. |
 
-- **`InstallSchemaAsync(adminPassphrase)`** - Install database schema
-- **`VerifySchemaAsync()`** - Check if schema is installed (returns version string or null)
-- **`MigrateAsync()`** - Run database migrations
-- **`Dispose()`** - Clean up resources (implements IDisposable)
-
-## Database Setup
-
-### First-Time Installation
+### First-time schema installation
 
 ```csharp
 var subscrio = new Subscrio(config);
 await subscrio.InstallSchemaAsync("your-secure-admin-passphrase");
 ```
 
-### Verify Schema
+This creates every required table and stores the hashed admin passphrase. Run it once per database.
+
+### Checking if schema is installed
 
 ```csharp
 var version = await subscrio.VerifySchemaAsync();
@@ -354,12 +413,18 @@ if (version == null)
 }
 ```
 
-### Run Migrations
+Use this on startup if you want to install the schema only when it is missing.
+
+### Running migrations
+
+After upgrading the Subscrio library, run migrations so the database schema stays in sync:
 
 ```csharp
 var migrationsApplied = await subscrio.MigrateAsync();
 Console.WriteLine($"Applied {migrationsApplied} migrations");
 ```
+
+Call `MigrateAsync()` during startup or as part of your deployment; it is safe to call when there are no pending migrations (it will apply zero and return 0).
 
 ## Usage Examples
 
