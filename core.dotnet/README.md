@@ -69,38 +69,13 @@ Set the connection string in one of these ways:
 
 After the database exists and the connection string is set, use **Database setup and migrations** below to install or update the schema.
 
-## Building the library and NuGet
-
-### Build the project
+## Building and testing
 
 From the repo root or from `core.dotnet`:
 
 ```bash
 cd core.dotnet
-dotnet build
-```
-
-To build the solution (library, tests, sample):
-
-```bash
 dotnet build Subscrio.Core.sln
-```
-
-Outputs go to `src/bin/Debug/<TargetFramework>/` (or `Release` when built in Release). The library is multi-targeted (`net8.0`, `net9.0`, `net10.0`), so each framework has its own folder.
-
-### Build the NuGet package
-
-From `core.dotnet` (or the solution directory):
-
-```bash
-dotnet pack src/Subscrio.Core.csproj -c Release
-```
-
-The `.nupkg` is produced under `src/bin/Release/`. To ship a NuGet package you typically add `PackageId`, `Version`, and optionally `Description`, `Authors`, etc. to `Subscrio.Core.csproj` (or a `Directory.Build.props`), then run the same `dotnet pack`; you can push with `dotnet nuget push` to a feed.
-
-### Run tests
-
-```bash
 dotnet test Subscrio.Core.sln
 ```
 

@@ -25,6 +25,8 @@ JsonSerializerOptions JsonOptions = new JsonSerializerOptions
 
 async Task Main()
 {
+    Console.OutputEncoding = System.Text.Encoding.UTF8;
+
     var config = SampleConfig.LoadConfig();
     PrintHeader(config.Database.ConnectionString);
 

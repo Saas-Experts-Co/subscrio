@@ -857,7 +857,7 @@ public class SubscriptionManagementService
     ///    - New subscription key is versioned: original key + "-vX" (or increments if already versioned)
     /// 
     /// Note: Plans do not have grace periods. A subscription is expired when
-    /// `expirationDate <= NOW()` and there is no cancellation.
+    /// <c>expirationDate &lt;= NOW()</c> and there is no cancellation.
     /// 
     /// </summary>
     /// <returns>Report of processed subscriptions</returns>
