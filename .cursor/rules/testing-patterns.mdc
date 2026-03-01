@@ -1,0 +1,455 @@
+---
+alwaysApply: true
+---
+
+# Testing Pattern Rules
+
+## CRITICAL: E2E Tests with Real Database
+
+**ALL tests MUST use end-to-end testing with real PostgreSQL databases. NO MOCKS.**
+
+## Testing Philosophy
+
+- Test the **public API** exposed by `@subscrio/core`
+- Use **real database** for all tests
+- Each test suite creates a **fresh database**
+- Test **complete workflows**, not individual units
+- Focus on **behavior**, not implementation
+
+## Test Database Setup
+
+```typescript
+// tests/setup/database.ts
+import { randomUUID } from 'crypto';
+import { Client } from 'pg';
+import { Subscrio } from '@subscrio/core';
+
+export interface TestContext {
+  dbName: string;
+  connectionString: string;
+  subscrio: Subscrio;
+}
+
+export async function setupTestDatabase(): Promise<TestContext> {
+  // Generate unique database name
+  const dbName = `subscrio_test_${randomUUID().replace(/-/g, '')}`;
+  
+  // Connect to postgres database to create test DB
+  const adminClient = new Client({
+    connectionString: process.env.TEST_DATABASE_URL || 
+      'postgresql://postgres:postgres@localhost:5432/postgres'
+  });
+  
+  await adminClient.connect();
+  await adminClient.query(`CREATE DATABASE ${dbName}`);
+  await adminClient.end();
+  
+  // Build connection string for test database
+  const baseUrl = process.env.TEST_DATABASE_URL || 
+    'postgresql://postgres:postgres@localhost:5432/postgres';
+  const connectionString = baseUrl.replace(/\/[^/]*$/, `/${dbName}`);
+  
+  // Initialize Subscrio with test database
+  const subscrio = new Subscrio({
+    database: { connectionString }
+  });
+  
+  // Install schema using public API
+  await subscrio.installSchema();
+  
+  return { dbName, connectionString, subscrio };
+}
+
+export async function teardownTestDatabase(dbName: string): Promise<void> {
+  const adminClient = new Client({
+    connectionString: process.env.TEST_DATABASE_URL ||
+      'postgresql://postgres:postgres@localhost:5432/postgres'
+  });
+  
+  await adminClient.connect();
+  
+  // Terminate connections and drop database
+  await adminClient.query(`
+    SELECT pg_terminate_backend(pg_stat_activity.pid)
+    FROM pg_stat_activity
+    WHERE pg_stat_activity.datname = '${dbName}'
+      AND pid <> pg_backend_pid()
+  `);
+  
+  await adminClient.query(`DROP DATABASE IF EXISTS ${dbName}`);
+  await adminClient.end();
+}
+```
+
+## Vitest Configuration
+
+```typescript
+// packages/core/vitest.config.ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    globals: true,
+    environment: 'node',
+    setupFiles: ['./tests/setup/vitest-setup.ts'],
+    testTimeout: 30000, // 30s for database operations
+    hookTimeout: 30000,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      exclude: [
+        'node_modules/',
+        'tests/',
+        '**/*.test.ts',
+        '**/index.ts' // Re-exports
+      ],
+      lines: 80,
+      functions: 80,
+      branches: 80,
+      statements: 80
+    },
+    poolOptions: {
+      threads: {
+        singleThread: true // Run tests sequentially to avoid DB conflicts
+      }
+    }
+  }
+});
+```
+
+## Test Structure Pattern
+
+```typescript
+// tests/e2e/products.test.ts
+import { describe, test, expect, beforeAll, afterAll } from 'vitest';
+import { Subscrio } from '@subscrio/core';
+import { setupTestDatabase, teardownTestDatabase } from '../setup/database';
+
+describe('Products E2E Tests', () => {
+  let subscrio: Subscrio;
+  let dbName: string;
+  
+  beforeAll(async () => {
+    const context = await setupTestDatabase();
+    subscrio = context.subscrio;
+    dbName = context.dbName;
+  });
+  
+  afterAll(async () => {
+    await teardownTestDatabase(dbName);
+  });
+
+  describe('Product Creation', () => {
+    test('creates a product with valid data', async () => {
+      const product = await subscrio.products.createProduct({
+        key: 'test-product',
+        displayName: 'Test Product',
+        description: 'A test product'
+      });
+
+      expect(product).toBeDefined();
+      expect(product.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}/); // UUIDv7
+      expect(product.key).toBe('test-product');
+      expect(product.displayName).toBe('Test Product');
+      expect(product.status).toBe('active');
+    });
+
+    test('throws error for duplicate product key', async () => {
+      await subscrio.products.createProduct({
+        key: 'duplicate-key',
+        displayName: 'Product 1'
+      });
+
+      await expect(
+        subscrio.products.createProduct({
+          key: 'duplicate-key',
+          displayName: 'Product 2'
+        })
+      ).rejects.toThrow('already exists');
+    });
+
+    test('validates product key format', async () => {
+      await expect(
+        subscrio.products.createProduct({
+          key: 'INVALID KEY!',
+          displayName: 'Invalid Product'
+        })
+      ).rejects.toThrow('validation');
+    });
+  });
+
+  describe('Product Lifecycle', () => {
+    test('complete product lifecycle', async () => {
+      // Create
+      const product = await subscrio.products.createProduct({
+        key: 'lifecycle-test',
+        displayName: 'Lifecycle Test'
+      });
+      expect(product.status).toBe('active');
+
+      // Update
+      const updated = await subscrio.products.updateProduct(product.id, {
+        displayName: 'Updated Name'
+      });
+      expect(updated.displayName).toBe('Updated Name');
+
+      // Deactivate
+      await subscrio.products.deactivateProduct(product.id);
+      const deactivated = await subscrio.products.getProduct(product.id);
+      expect(deactivated?.status).toBe('inactive');
+
+      // Archive
+      await subscrio.products.archiveProduct(product.id);
+      const archived = await subscrio.products.getProduct(product.id);
+      expect(archived?.status).toBe('archived');
+
+      // Delete (only allowed when archived)
+      await subscrio.products.deleteProduct(product.id);
+      const deleted = await subscrio.products.getProduct(product.id);
+      expect(deleted).toBeNull();
+    });
+  });
+
+  describe('Feature Association', () => {
+    test('associates and dissociates features', async () => {
+      const product = await subscrio.products.createProduct({
+        key: 'feature-test',
+        displayName: 'Feature Test'
+      });
+
+      const feature = await subscrio.features.createFeature({
+        key: 'test-feature',
+        displayName: 'Test Feature',
+        valueType: 'toggle',
+        defaultValue: 'false'
+      });
+
+      // Associate
+      await subscrio.products.associateFeature(product.id, feature.id);
+      const features = await subscrio.features.getFeaturesByProduct(product.id);
+      expect(features).toHaveLength(1);
+      expect(features[0].id).toBe(feature.id);
+
+      // Dissociate
+      await subscrio.products.dissociateFeature(product.id, feature.id);
+      const afterDissociate = await subscrio.features.getFeaturesByProduct(product.id);
+      expect(afterDissociate).toHaveLength(0);
+    });
+  });
+});
+```
+
+## Test Fixture Helpers
+
+```typescript
+// tests/helpers/fixtures.ts
+import { Subscrio } from '@subscrio/core';
+
+export class TestFixtures {
+  constructor(private readonly subscrio: Subscrio) {}
+
+  async createProduct(overrides: Partial<CreateProductDto> = {}) {
+    return this.subscrio.products.createProduct({
+      key: `product-${Date.now()}`,
+      displayName: 'Test Product',
+      ...overrides
+    });
+  }
+
+  async createFeature(overrides: Partial<CreateFeatureDto> = {}) {
+    return this.subscrio.features.createFeature({
+      key: `feature-${Date.now()}`,
+      displayName: 'Test Feature',
+      valueType: 'toggle',
+      defaultValue: 'false',
+      ...overrides
+    });
+  }
+
+  async createPlan(productId: string, overrides: Partial<CreatePlanDto> = {}) {
+    return this.subscrio.plans.createPlan({
+      productId,
+      key: `plan-${Date.now()}`,
+      displayName: 'Test Plan',
+      ...overrides
+    });
+  }
+
+  async createCustomer(overrides: Partial<CreateCustomerDto> = {}) {
+    return this.subscrio.customers.createCustomer({
+      externalId: `customer-${Date.now()}`,
+      ...overrides
+    });
+  }
+
+  async createSubscription(
+    customerExternalId: string,
+    planId: string,
+    overrides: Partial<CreateSubscriptionDto> = {}
+  ) {
+    return this.subscrio.subscriptions.createSubscription({
+      customerExternalId,
+      planId,
+      ...overrides
+    });
+  }
+
+  /**
+   * Sets up a complete product with features and plans
+   */
+  async setupCompleteProduct() {
+    const product = await this.createProduct();
+    
+    const features = await Promise.all([
+      this.createFeature({ 
+        key: 'max-projects', 
+        valueType: 'numeric', 
+        defaultValue: '10' 
+      }),
+      this.createFeature({ 
+        key: 'gantt-charts', 
+        valueType: 'toggle', 
+        defaultValue: 'false' 
+      })
+    ]);
+
+    // Associate features with product
+    await Promise.all(
+      features.map(f => this.subscrio.products.associateFeature(product.id, f.id))
+    );
+
+    const basicPlan = await this.createPlan(product.id, { 
+      key: 'basic',
+      displayName: 'Basic Plan'
+    });
+    
+    const proPlan = await this.createPlan(product.id, { 
+      key: 'pro',
+      displayName: 'Pro Plan'
+    });
+
+    // Set feature values
+    await this.subscrio.plans.setFeatureValue(proPlan.id, features[0].id, '50');
+    await this.subscrio.plans.setFeatureValue(proPlan.id, features[1].id, 'true');
+
+    return { product, features, plans: [basicPlan, proPlan] };
+  }
+}
+```
+
+## Critical Rules
+
+1. **No Mocks**:
+   - ❌ NEVER mock repositories
+   - ❌ NEVER mock database
+   - ❌ NEVER mock services
+   - ✅ Use real PostgreSQL
+   - ✅ Test actual behavior
+
+2. **Database Isolation**:
+   - Each test file gets fresh database
+   - Use `beforeAll` and `afterAll`
+   - Clean up after tests
+   - Tests can run in any order
+
+3. **Test Organization**:
+   ```
+   tests/
+   ├── setup/
+   │   ├── database.ts          # DB setup/teardown
+   │   └── vitest-setup.ts      # Global setup
+   ├── helpers/
+   │   ├── fixtures.ts          # Test data builders
+   │   └── assertions.ts        # Custom matchers
+   └── e2e/
+       ├── products.test.ts
+       ├── features.test.ts
+       ├── plans.test.ts
+       ├── customers.test.ts
+       ├── subscriptions.test.ts
+       ├── feature-checker.test.ts
+       ├── stripe-integration.test.ts
+       └── renewal-cycles.test.ts
+   ```
+
+4. **Test Coverage**:
+   - Test ALL public methods
+   - Test success paths
+   - Test error conditions
+   - Test edge cases
+   - Test business rules
+   - Minimum 80% coverage
+
+5. **Assertions**:
+   ```typescript
+   // Test data persistence
+   const created = await subscrio.products.createProduct(dto);
+   const retrieved = await subscrio.products.getProduct(created.id);
+   expect(retrieved).toEqual(created);
+
+   // Test business rules
+   await expect(
+     subscrio.products.deleteProduct(activeProduct.id)
+   ).rejects.toThrow('cannot delete active product');
+
+   // Test feature resolution
+   const value = await subscrio.featureChecker.getValue(
+     customer.externalId,
+     'max-projects'
+   );
+   expect(value).toBe('50');
+   ```
+
+6. **Async/Await**:
+   - Always use `async/await`
+   - Never use callbacks
+   - Always `await` database operations
+   - Handle errors properly
+
+7. **Environment Variables**:
+   ```bash
+   # .env.test
+   TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
+   LOG_LEVEL=error  # Quiet logs during tests
+   ```
+
+## Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run specific file
+npm test products.test.ts
+
+# Run with coverage
+npm test:coverage
+
+# Watch mode
+npm test:watch
+```
+
+## CI Integration
+
+```yaml
+# .github/workflows/test.yml
+test:
+  services:
+    postgres:
+      image: postgres:15
+      env:
+        POSTGRES_PASSWORD: postgres
+      ports:
+        - 5432:5432
+  steps:
+    - run: npm test:coverage
+      env:
+        TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+```
+
+## Benefits
+- Tests actual behavior, not mocks
+- Catches integration issues
+- Database constraints enforced
+- Type-safe end-to-end
+- Confidence in deployments

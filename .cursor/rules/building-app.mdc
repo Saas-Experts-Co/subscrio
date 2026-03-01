@@ -1,0 +1,4 @@
+---
+alwaysApply: true
+---
+never run the application directly from the terminal.  you can always build it to test for errors but do not run it.  you tend to leave the app running in a hiddent terminal window and that creates problems for me when i try to run it from the terminal.

@@ -1,0 +1,4 @@
+/* Override Material typeset font size for content area */
+.md-typeset {
+  font-size: 0.7rem;
+}

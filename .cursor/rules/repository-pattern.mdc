@@ -1,0 +1,206 @@
+---
+alwaysApply: true
+---
+
+# Repository Pattern Rules
+
+## CRITICAL: No Direct Database Access from Application Layer
+
+**Application services MUST NEVER directly access the database or ORM. All database operations MUST go through repository interfaces.**
+
+## Architecture
+
+```
+Application Layer → Repository Interface → Infrastructure Layer → Drizzle ORM → Database
+```
+
+## Pattern Structure
+
+### 1. Define Interface in Application Layer
+
+```typescript
+// packages/core/src/application/repositories/IProductRepository.ts
+import { Product } from '../../domain/entities/Product';
+
+export interface IProductRepository {
+  save(product: Product): Promise<void>;
+  findById(id: string): Promise<Product | null>;
+  findByKey(key: string): Promise<Product | null>;
+  findAll(filters?: ProductFilters): Promise<Product[]>;
+  delete(id: string): Promise<void>;
+  exists(id: string): Promise<boolean>;
+}
+```
+
+### 2. Implement in Infrastructure Layer
+
+```typescript
+// packages/core/src/infrastructure/repositories/DrizzleProductRepository.ts
+import { IProductRepository } from '../../application/repositories/IProductRepository';
+import { Product } from '../../domain/entities/Product';
+import { ProductMapper } from '../../application/mappers/ProductMapper';
+import { DrizzleDb } from '../database/drizzle';
+import { products } from '../database/schema';
+import { eq } from 'drizzle-orm';
+
+export class DrizzleProductRepository implements IProductRepository {
+  constructor(private readonly db: DrizzleDb) {}
+
+  async save(product: Product): Promise<void> {
+    const record = ProductMapper.toPersistence(product);
+    await this.db
+      .insert(products)
+      .values(record)
+      .onConflictDoUpdate({
+        target: products.id,
+        set: record
+      });
+  }
+
+  async findById(id: string): Promise<Product | null> {
+    const [record] = await this.db
+      .select()
+      .from(products)
+      .where(eq(products.id, id))
+      .limit(1);
+    
+    return record ? ProductMapper.toDomain(record) : null;
+  }
+
+  async findByKey(key: string): Promise<Product | null> {
+    const [record] = await this.db
+      .select()
+      .from(products)
+      .where(eq(products.key, key))
+      .limit(1);
+    
+    return record ? ProductMapper.toDomain(record) : null;
+  }
+
+  async findAll(filters?: ProductFilters): Promise<Product[]> {
+    const query = this.db.select().from(products);
+    
+    // Apply filters...
+    
+    const records = await query;
+    return records.map(ProductMapper.toDomain);
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.db.delete(products).where(eq(products.id, id));
+  }
+
+  async exists(id: string): Promise<boolean> {
+    const [record] = await this.db
+      .select({ id: products.id })
+      .from(products)
+      .where(eq(products.id, id))
+      .limit(1);
+    
+    return !!record;
+  }
+}
+```
+
+### 3. Use in Application Services
+
+```typescript
+// packages/core/src/application/services/ProductManagementService.ts
+import { IProductRepository } from '../repositories/IProductRepository';
+import { CreateProductDto, ProductDto } from '../dtos/ProductDto';
+import { ProductMapper } from '../mappers/ProductMapper';
+import { Product } from '../../domain/entities/Product';
+import { generateId } from '../../infrastructure/utils/uuid';
+
+export class ProductManagementService {
+  constructor(
+    private readonly productRepository: IProductRepository  // Interface, not implementation
+  ) {}
+
+  async createProduct(dto: CreateProductDto): Promise<ProductDto> {
+    // Validate
+    CreateProductDtoSchema.parse(dto);
+    
+    // Check if key exists
+    const existing = await this.productRepository.findByKey(dto.key);
+    if (existing) {
+      throw new ConflictError(`Product with key ${dto.key} already exists`);
+    }
+    
+    // Create domain entity
+    const id = generateId();
+    const product = new Product({
+      key: dto.key,
+      displayName: dto.displayName,
+      description: dto.description,
+      status: ProductStatus.Active,
+      displayOrder: dto.displayOrder ?? 0,
+      metadata: dto.metadata,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }, id);
+    
+    // Save via repository
+    await this.productRepository.save(product);
+    
+    // Return DTO
+    return ProductMapper.toDto(product);
+  }
+
+  async getProduct(id: string): Promise<ProductDto | null> {
+    const product = await this.productRepository.findById(id);
+    return product ? ProductMapper.toDto(product) : null;
+  }
+}
+```
+
+## Critical Rules
+
+1. **Application Layer**:
+   - ✅ Define repository interfaces
+   - ✅ Use repository interfaces (constructor injection)
+   - ❌ NEVER import Drizzle or database schema
+   - ❌ NEVER write SQL or query builder code
+   - ❌ NEVER import from `infrastructure/database`
+
+2. **Infrastructure Layer**:
+   - ✅ Implement repository interfaces
+   - ✅ Use Drizzle ORM and schema
+   - ✅ Use mappers for transformations
+   - ❌ NEVER expose database concerns to Application layer
+
+3. **Repository Methods**:
+   - Always work with Domain entities (not DTOs or records)
+   - Use mappers for all transformations
+   - Handle database errors and convert to domain errors
+   - Keep methods focused (single responsibility)
+
+4. **Dependency Injection**:
+   ```typescript
+   // Main Subscrio class wires everything together
+   export class Subscrio {
+     private readonly productRepository: IProductRepository;
+     public readonly products: ProductManagementService;
+
+     constructor(config: SubscrioConfig) {
+       const db = initializeDatabase(config.database);
+       
+       // Create repositories
+       this.productRepository = new DrizzleProductRepository(db);
+       
+       // Inject into services
+       this.products = new ProductManagementService(this.productRepository);
+     }
+   }
+   ```
+
+5. **Testing**:
+   - Unit tests: Mock repository interfaces
+   - E2E tests: Use real database with real repositories
+
+## Benefits
+- Application layer is database-agnostic
+- Easy to swap database implementations
+- Testable without database
+- Clear separation of concerns
+- Type-safe at every layer

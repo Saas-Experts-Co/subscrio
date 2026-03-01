@@ -1,0 +1,407 @@
+---
+alwaysApply: true
+---
+
+# Admin Application Architecture Rules
+
+## CRITICAL: Direct Library Import Pattern
+
+**The admin application MUST import `@subscrio/core` directly and call library methods. It MUST NOT use REST API.**
+
+## Architecture Overview
+
+```
+Admin React App → Singleton Subscrio Instance → Library Services → Database
+```
+
+**NOT this:**
+```
+Admin React App → HTTP/REST API → Library Services → Database  ❌
+```
+
+## Why Direct Import?
+
+1. **Type Safety**: Share TypeScript types directly
+2. **No HTTP Overhead**: Direct function calls, no serialization
+3. **Simpler Deployment**: Single process, no API server needed
+4. **Better Performance**: No network latency
+5. **Security**: No need to expose database credentials via HTTP
+
+## Singleton Instance Pattern
+
+```typescript
+// packages/admin/src/lib/subscrio.ts
+import { Subscrio } from '@subscrio/core';
+import { loadConfig } from '@subscrio/core/config';
+
+// Create singleton instance
+const config = loadConfig();
+export const subscrio = new Subscrio(config);
+
+// Initialize schema on app start
+let initialized = false;
+
+export async function initializeSubscrio(): Promise<void> {
+  if (initialized) return;
+
+  const schemaExists = await subscrio.verifySchema();
+  if (!schemaExists) {
+    await subscrio.installSchema();
+  }
+
+  initialized = true;
+}
+```
+
+## App Entry Point
+
+```typescript
+// packages/admin/src/main.tsx
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { App } from './App';
+import { initializeSubscrio } from './lib/subscrio';
+import './index.css';
+
+// Initialize before rendering
+initializeSubscrio()
+  .then(() => {
+    ReactDOM.createRoot(document.getElementById('root')!).render(
+      <React.StrictMode>
+        <App />
+      </React.StrictMode>
+    );
+  })
+  .catch((error) => {
+    console.error('Failed to initialize Subscrio:', error);
+    document.body.innerHTML = `
+      <div style="padding: 2rem; font-family: sans-serif;">
+        <h1>Initialization Error</h1>
+        <p>${error.message}</p>
+      </div>
+    `;
+  });
+```
+
+## React Query Integration
+
+```typescript
+// packages/admin/src/hooks/useProducts.ts
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { subscrio } from '../lib/subscrio';
+import { CreateProductDto, ProductDto } from '@subscrio/core';
+
+export function useProducts() {
+  return useQuery({
+    queryKey: ['products'],
+    queryFn: () => subscrio.products.listProducts({})
+  });
+}
+
+export function useProduct(id: string) {
+  return useQuery({
+    queryKey: ['products', id],
+    queryFn: () => subscrio.products.getProduct(id),
+    enabled: !!id
+  });
+}
+
+export function useCreateProduct() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: CreateProductDto) => 
+      subscrio.products.createProduct(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    }
+  });
+}
+
+export function useUpdateProduct() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateProductDto }) =>
+      subscrio.products.updateProduct(id, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['products', variables.id] });
+    }
+  });
+}
+
+export function useDeleteProduct() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => subscrio.products.deleteProduct(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    }
+  });
+}
+```
+
+## React Component Example
+
+```typescript
+// packages/admin/src/pages/Products.tsx
+import { useState } from 'react';
+import { useProducts, useCreateProduct } from '../hooks/useProducts';
+import { CreateProductDto } from '@subscrio/core';
+import { toast } from 'sonner';
+
+export function ProductsPage() {
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  
+  // Direct library call via React Query
+  const { data: products, isLoading, error } = useProducts();
+  const createProduct = useCreateProduct();
+
+  const handleCreate = async (data: CreateProductDto) => {
+    try {
+      await createProduct.mutateAsync(data);
+      toast.success('Product created successfully');
+      setIsCreateOpen(false);
+    } catch (error) {
+      toast.error('Failed to create product');
+    }
+  };
+
+  if (isLoading) return <LoadingSpinner />;
+  if (error) return <ErrorMessage error={error} />;
+
+  return (
+    <div>
+      <h1>Products</h1>
+      <Button onClick={() => setIsCreateOpen(true)}>
+        Create Product
+      </Button>
+      
+      {products?.map(product => (
+        <ProductCard key={product.id} product={product} />
+      ))}
+
+      <CreateProductDialog
+        open={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        onSubmit={handleCreate}
+      />
+    </div>
+  );
+}
+```
+
+## Type Imports
+
+```typescript
+// Import types directly from @subscrio/core
+import type {
+  ProductDto,
+  CreateProductDto,
+  UpdateProductDto,
+  PlanDto,
+  FeatureDto,
+  SubscriptionDto
+} from '@subscrio/core';
+
+// Use in components
+interface ProductFormProps {
+  initialData?: ProductDto;
+  onSubmit: (data: CreateProductDto) => Promise<void>;
+}
+```
+
+## Authentication
+
+```typescript
+// packages/admin/src/hooks/useAuth.ts
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { subscrio } from '../lib/subscrio';
+
+interface AuthState {
+  isAuthenticated: boolean;
+  login: (passphrase: string) => Promise<boolean>;
+  logout: () => void;
+}
+
+export const useAuth = create<AuthState>()(
+  persist(
+    (set) => ({
+      isAuthenticated: false,
+
+      login: async (passphrase: string) => {
+        try {
+          // Call library directly to verify passphrase
+          const isValid = await subscrio.auth.verifyAdminPassphrase(passphrase);
+          
+          if (isValid) {
+            set({ isAuthenticated: true });
+            return true;
+          }
+          return false;
+        } catch (error) {
+          console.error('Login error:', error);
+          return false;
+        }
+      },
+
+      logout: () => {
+        set({ isAuthenticated: false });
+      }
+    }),
+    {
+      name: 'subscrio-auth'
+    }
+  )
+);
+```
+
+## Environment Variables
+
+```bash
+# packages/admin/.env
+# Database connection (same as core library)
+DATABASE_URL=postgresql://user:password@localhost:5432/subscrio
+
+# Admin authentication
+ADMIN_PASSPHRASE=your-secure-passphrase
+
+# Stripe (optional)
+STRIPE_SECRET_KEY=sk_test_...
+
+# Vite uses VITE_ prefix for client-side variables
+# But admin runs in Node, so uses regular env vars
+```
+
+## Vite Configuration
+
+```typescript
+// packages/admin/vite.config.ts
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { resolve } from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, './src')
+    }
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: true
+  },
+  // Admin runs in Node, can access environment variables
+  define: {
+    'process.env': process.env
+  }
+});
+```
+
+## Package.json Dependencies
+
+```json
+{
+  "name": "@subscrio/admin",
+  "dependencies": {
+    "@subscrio/core": "workspace:*",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "@tanstack/react-query": "^5.0.0",
+    "wouter": "^3.0.0",
+    "zustand": "^4.0.0",
+    "zod": "^3.22.0",
+    "sonner": "^1.0.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  }
+}
+```
+
+## Critical Rules
+
+1. **Direct Import Only**:
+   - ✅ `import { subscrio } from '../lib/subscrio'`
+   - ❌ NEVER `fetch('http://localhost:3001/api/products')`
+
+2. **Singleton Pattern**:
+   - Create ONE instance in `lib/subscrio.ts`
+   - Import and reuse everywhere
+   - Initialize once at app start
+
+3. **React Query for Async State**:
+   - Wrap all library calls in React Query hooks
+   - Use `queryKey` for caching
+   - Use `invalidateQueries` after mutations
+
+4. **Type Safety**:
+   - Import types directly from `@subscrio/core`
+   - No need to redefine interfaces
+   - Full TypeScript inference
+
+5. **Error Handling**:
+   - Library throws typed errors
+   - Catch in React components
+   - Show user-friendly toast messages
+
+6. **No API Server Required**:
+   - Admin app doesn't need `@subscrio/api`
+   - Runs in same process as library
+   - Direct database access via library
+
+7. **Authentication**:
+   - Call library's auth methods directly
+   - Store auth state in Zustand
+   - Protect routes with auth check
+
+8. **File Structure**:
+   ```
+   packages/admin/
+   ├── src/
+   │   ├── lib/
+   │   │   └── subscrio.ts          # Singleton instance
+   │   ├── hooks/
+   │   │   ├── useProducts.ts       # React Query hooks
+   │   │   ├── useAuth.ts
+   │   │   └── useFeatures.ts
+   │   ├── pages/
+   │   │   ├── Products.tsx
+   │   │   ├── Plans.tsx
+   │   │   └── Subscriptions.tsx
+   │   ├── components/
+   │   │   └── ...
+   │   ├── App.tsx
+   │   └── main.tsx
+   └── package.json
+   ```
+
+## Benefits
+
+- **Type Safety**: Compile-time type checking
+- **Performance**: No HTTP overhead
+- **Simplicity**: No API server to manage
+- **Security**: No exposed endpoints
+- **Developer Experience**: Direct access to library features
+- **Deployment**: Single artifact to deploy
+
+## When to Use REST API vs Direct Import
+
+**Use Direct Import (Admin App)**:
+- ✅ Admin web application
+- ✅ Internal tools
+- ✅ Same infrastructure as database
+- ✅ Trusted environment
+
+**Use REST API**:
+- ✅ Third-party integrations
+- ✅ Mobile apps
+- ✅ External services
+- ✅ Different infrastructure
+- ✅ API key authentication needed

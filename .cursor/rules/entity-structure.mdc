@@ -1,0 +1,234 @@
+---
+alwaysApply: true
+---
+
+# Entity and Value Object Structure Rules
+
+## Entity Base Class
+
+**ALL domain entities MUST extend the base Entity class:**
+
+```typescript
+// packages/core/src/domain/base/Entity.ts
+export abstract class Entity<T> {
+  protected readonly props: T;
+  private readonly _id: string;
+
+  constructor(props: T, id: string) {
+    this.props = props;
+    this._id = id;
+  }
+
+  get id(): string {
+    return this._id;
+  }
+
+  public equals(entity: Entity<T>): boolean {
+    if (entity === null || entity === undefined) {
+      return false;
+    }
+    if (this === entity) {
+      return true;
+    }
+    return this._id === entity._id;
+  }
+}
+```
+
+## Entity Pattern
+
+```typescript
+// packages/core/src/domain/entities/Product.ts
+import { Entity } from '../base/Entity';
+import { ProductStatus } from '../value-objects/ProductStatus';
+
+export interface ProductProps {
+  key: string;
+  displayName: string;
+  description?: string;
+  status: ProductStatus;
+  displayOrder: number;
+  metadata?: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export class Product extends Entity<ProductProps> {
+  // Getters for commonly accessed properties
+  get key(): string {
+    return this.props.key;
+  }
+
+  get displayName(): string {
+    return this.props.displayName;
+  }
+
+  get status(): ProductStatus {
+    return this.props.status;
+  }
+
+  // Business logic methods that enforce rules
+  activate(): void {
+    this.props.status = ProductStatus.Active;
+    this.props.updatedAt = new Date();
+  }
+
+  deactivate(): void {
+    this.props.status = ProductStatus.Inactive;
+    this.props.updatedAt = new Date();
+  }
+
+  archive(): void {
+    this.props.status = ProductStatus.Archived;
+    this.props.updatedAt = new Date();
+  }
+
+  // Domain rules validation
+  canDelete(): boolean {
+    // Can only delete archived products
+    return this.props.status === ProductStatus.Archived;
+  }
+
+  updateDisplayName(name: string): void {
+    if (!name || name.length === 0) {
+      throw new DomainError('Display name cannot be empty');
+    }
+    this.props.displayName = name;
+    this.props.updatedAt = new Date();
+  }
+}
+```
+
+## Value Objects
+
+**Use Value Objects for types, statuses, and enum-like values:**
+
+```typescript
+// packages/core/src/domain/value-objects/ProductStatus.ts
+export enum ProductStatus {
+  Active = 'active',
+  Inactive = 'inactive',
+  Archived = 'archived'
+}
+
+// packages/core/src/domain/value-objects/FeatureValueType.ts
+export enum FeatureValueType {
+  Toggle = 'toggle',
+  Numeric = 'numeric',
+  Text = 'text'
+}
+
+// packages/core/src/domain/value-objects/SubscriptionStatus.ts
+export enum SubscriptionStatus {
+  Active = 'active',
+  Trial = 'trial',
+  Cancelled = 'cancelled',
+  Expired = 'expired',
+  Suspended = 'suspended'
+}
+```
+
+## Critical Rules
+
+1. **Entity Structure**:
+   - Always extend `Entity<T>`
+   - Define `Props` interface with all properties
+   - ID passed to constructor, immutable
+   - Props accessed via `this.props`
+   - Provide getters for commonly used properties
+
+2. **Business Logic Location**:
+   - Business rules MUST be in entity methods
+   - ❌ NOT in services
+   - ❌ NOT in repositories
+   - ✅ In domain entities
+
+3. **Entity Behavior**:
+   ```typescript
+   // ✅ GOOD - Logic in entity
+   const product = await productRepo.findById(id);
+   product.archive();
+   await productRepo.save(product);
+
+   // ❌ BAD - Logic in service
+   const product = await productRepo.findById(id);
+   product.props.status = 'archived';  // Direct property mutation
+   await productRepo.save(product);
+   ```
+
+4. **Value Objects**:
+   - Use enums for statuses and types
+   - Keep them in `domain/value-objects/`
+   - Export as const enums for better type safety
+   - Use string values for database compatibility
+
+5. **Immutability**:
+   - ID is immutable (private readonly)
+   - Props can be modified through methods
+   - Methods should update `updatedAt` when changing state
+
+6. **Validation**:
+   - Domain validation in entities
+   - Input validation in DTOs (Zod)
+   - Business rule validation in entities
+
+7. **Entity Creation**:
+   ```typescript
+   // In application service
+   const id = generateId();  // Generate UUIDv7
+   const product = new Product({
+     key: dto.key,
+     displayName: dto.displayName,
+     status: ProductStatus.Active,
+     displayOrder: dto.displayOrder ?? 0,
+     createdAt: new Date(),
+     updatedAt: new Date()
+   }, id);
+   ```
+
+## Domain Services
+
+**Use domain services for operations involving multiple entities:**
+
+```typescript
+// packages/core/src/domain/services/FeatureValueResolver.ts
+export class FeatureValueResolver {
+  /**
+   * Resolves feature value using hierarchy:
+   * 1. Subscription Override
+   * 2. Plan Value
+   * 3. Feature Default
+   */
+  resolve(
+    feature: Feature,
+    plan: Plan | null,
+    subscription: Subscription | null
+  ): string {
+    // Check subscription override
+    if (subscription) {
+      const override = subscription.getFeatureOverride(feature.id);
+      if (override) {
+        return override.value;
+      }
+    }
+
+    // Check plan value
+    if (plan) {
+      const planValue = plan.getFeatureValue(feature.id);
+      if (planValue) {
+        return planValue;
+      }
+    }
+
+    // Use feature default
+    return feature.defaultValue;
+  }
+}
+```
+
+## Benefits
+- Rich domain model with behavior
+- Business rules enforced at entity level
+- Type-safe with TypeScript
+- Easy to test (pure business logic)
+- Self-documenting code

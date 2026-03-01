@@ -1,0 +1,158 @@
+# Project information
+site_name: Subscrio API Reference
+site_url: https://docs.subscrio.com
+site_author: Jasen Fici
+site_description: >-
+  Subscrio is the entitlement layer your SaaS application is missing.  It's not feature flags 
+  for gradual rollouts. It's not a billing system for processing payments. It's the authoritative 
+  system between them that knows exactly what each customer is entitled to access.
+
+# Repository
+repo_name: Saas-Experts-Co/subscrio
+repo_url: https://github.com/Saas-Experts-Co/subscrio
+
+# Copyright
+copyright: Copyright 2026 SaaS Expoerts, Inc
+
+# Configuration
+theme:
+  name: material
+  custom_dir: overrides
+  features:
+    - content.code.copy
+    - content.tooltips
+    - navigation.footer
+    - navigation.indexes
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow    
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/link
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: purple
+      accent: purple
+      toggle:
+        icon: material/toggle-switch
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: purple
+      toggle:
+        icon: material/toggle-switch-off
+        name: Switch to system preference
+  font:
+    text: Inter
+    code: Roboto Mono
+  logo: assets/images/logo-only-white-100x99.png
+  favicon: assets/favicon.png
+  icon:
+    logo: logo
+
+# Plugins
+plugins:
+  - blog
+  - search:
+      separator: '[\s\u200b\-_,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+  - minify:
+      minify_html: true
+
+# Hooks
+hooks:
+  - overrides/hooks/shortcodes.py
+
+extra_css:
+  - assets/stylesheets/home.css
+
+# Additional configuration
+extra:
+  status:
+    new: Recently added
+    deprecated: Deprecated
+  analytics:
+    provider: google
+    property: !ENV GOOGLE_ANALYTICS_KEY
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/Saas-Experts-Co/subscrio
+    - icon: fontawesome/brands/x-twitter
+      link: https://x.com/subscrio
+
+# Extensions
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: false
+      toc_depth: "2-3"
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink:
+      normalize_issue_symbols: true
+      repo_url_shorthand: true
+      user: squidfunk
+      repo: mkdocs-material
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      auto_append:
+        - includes/mkdocs.md
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+      combine_header_slug: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+not_in_nav: |
+  /tutorials/**/*.md
+
+# Page tree
+nav:
+  - Welcome: index.md
+  - Getting Started: reference/getting-started.md
+  - Core Overview: reference/core-overview.md
+  - Subscription Lifecycle: reference/subscription-lifecycle.md
+  - Features: reference/features.md
+  - Products: reference/products.md
+  - Plans: reference/plans.md
+  - Billing Cycles: reference/billing-cycles.md
+  - Customers: reference/customers.md
+  - Subscriptions: reference/subscriptions.md
+  - Configuration Sync: reference/config-sync.md
+  - How to Integrate with Stripe: reference/how-to-integrate-with-stripe.md
+  - Feature Checker: reference/feature-checker.md            
+  - Relationships: reference/relationships.md

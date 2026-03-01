@@ -1,0 +1,389 @@
+---
+alwaysApply: true
+---
+
+# Feature Resolution Hierarchy Rules
+
+## CRITICAL: Feature Value Resolution Order
+
+**Feature values MUST be resolved in this exact order:**
+
+```
+1. Subscription Override (highest priority)
+   ↓
+2. Plan Value
+   ↓
+3. Feature Default (fallback)
+```
+
+## Implementation Pattern
+
+### Domain Service
+
+```typescript
+// packages/core/src/domain/services/FeatureValueResolver.ts
+export class FeatureValueResolver {
+  /**
+   * Resolves a feature value using the hierarchy:
+   * 1. Subscription Override (if exists)
+   * 2. Plan Value (if specified)
+   * 3. Feature Default (fallback)
+   */
+  resolve(
+    feature: Feature,
+    plan: Plan | null,
+    subscription: Subscription | null
+  ): string {
+    // STEP 1: Check subscription override
+    if (subscription) {
+      const override = subscription.getFeatureOverride(feature.key);
+      if (override !== null) {
+        return override.value;
+      }
+    }
+
+    // STEP 2: Check plan value
+    if (plan) {
+      const planValue = plan.getFeatureValue(feature.id);
+      if (planValue !== null) {
+        return planValue;
+      }
+    }
+
+    // STEP 3: Use feature default
+    return feature.defaultValue;
+  }
+
+  /**
+   * Resolves all features for a customer's subscriptions
+   */
+  resolveAll(
+    features: Feature[],
+    plans: Map<string, Plan>,
+    subscriptions: Subscription[]
+  ): Map<string, string> {
+    const resolved = new Map<string, string>();
+
+    for (const feature of features) {
+      let value = feature.defaultValue;
+
+      // Check all subscriptions (if multiple, highest priority wins)
+      for (const subscription of subscriptions) {
+        const plan = plans.get(subscription.planId);
+        const resolvedValue = this.resolve(feature, plan, subscription);
+        
+        // If subscription has override, it takes precedence
+        if (subscription.getFeatureOverride(feature.key)) {
+          value = resolvedValue;
+          break;  // Override found, stop checking
+        }
+        
+        // Otherwise, if plan has value and we don't have one yet
+        if (plan?.getFeatureValue(feature.id) && value === feature.defaultValue) {
+          value = resolvedValue;
+        }
+      }
+
+      resolved.set(feature.key, value);
+    }
+
+    return resolved;
+  }
+}
+```
+
+### Entity Methods
+
+```typescript
+// Subscription entity
+export class Subscription extends Entity<SubscriptionProps> {
+  getFeatureOverride(featureId: string): FeatureOverride | null {
+    return this.props.featureOverrides?.find(
+      o => o.featureId === featureId
+    ) ?? null;
+  }
+
+  addFeatureOverride(
+    featureId: string,
+    value: string,
+    type: OverrideType
+  ): void {
+    if (!this.props.featureOverrides) {
+      this.props.featureOverrides = [];
+    }
+
+    // Remove existing override if present
+    this.removeFeatureOverride(featureId);
+
+    this.props.featureOverrides.push({
+      featureId,
+      value,
+      type,
+      createdAt: new Date()
+    });
+
+    this.props.updatedAt = new Date();
+  }
+
+  removeFeatureOverride(featureId: string): void {
+    if (!this.props.featureOverrides) return;
+
+    this.props.featureOverrides = this.props.featureOverrides.filter(
+      o => o.featureId !== featureId
+    );
+
+    this.props.updatedAt = new Date();
+  }
+
+  clearTemporaryOverrides(): void {
+    if (!this.props.featureOverrides) return;
+
+    this.props.featureOverrides = this.props.featureOverrides.filter(
+      o => o.type === OverrideType.Permanent
+    );
+
+    this.props.updatedAt = new Date();
+  }
+}
+
+// Plan entity
+export class Plan extends Entity<PlanProps> {
+  getFeatureValue(featureId: string): string | null {
+    return this.props.featureValues?.find(
+      fv => fv.featureId === featureId
+    )?.value ?? null;
+  }
+
+  setFeatureValue(featureId: string, value: string): void {
+    if (!this.props.featureValues) {
+      this.props.featureValues = [];
+    }
+
+    const existing = this.props.featureValues.find(
+      fv => fv.featureId === featureId
+    );
+
+    if (existing) {
+      existing.value = value;
+      existing.updatedAt = new Date();
+    } else {
+      this.props.featureValues.push({
+        featureId,
+        value,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+    }
+
+    this.props.updatedAt = new Date();
+  }
+}
+```
+
+### Feature Checker Service (Public API)
+
+```typescript
+// packages/core/src/application/services/FeatureCheckerService.ts
+export class FeatureCheckerService {
+  constructor(
+    private readonly subscriptionRepository: ISubscriptionRepository,
+    private readonly planRepository: IPlanRepository,
+    private readonly featureRepository: IFeatureRepository,
+    private readonly customerRepository: ICustomerRepository,
+    private readonly resolver: FeatureValueResolver
+  ) {}
+
+  /**
+   * Check if a feature is enabled for a customer
+   */
+  async isEnabled(
+    customerExternalId: string,
+    featureKey: string
+  ): Promise<boolean> {
+    const value = await this.getValue(customerExternalId, featureKey);
+    
+    // Toggle features: check if value is 'true'
+    return value?.toLowerCase() === 'true';
+  }
+
+  /**
+   * Get feature value for a customer
+   */
+  async getValue<T = string>(
+    customerExternalId: string,
+    featureKey: string,
+    defaultValue?: T
+  ): Promise<T | null> {
+    // Find customer
+    const customer = await this.customerRepository.findByExternalId(
+      customerExternalId
+    );
+    if (!customer) {
+      return defaultValue ?? null;
+    }
+
+    // Get feature
+    const feature = await this.featureRepository.findByKey(featureKey);
+    if (!feature) {
+      return defaultValue ?? null;
+    }
+
+    // Get all active subscriptions for customer
+    const subscriptions = await this.subscriptionRepository.findByCustomerId(
+      customer.id,
+      { status: SubscriptionStatus.Active }
+    );
+
+    if (subscriptions.length === 0) {
+      // No active subscriptions, return default
+      return (feature.defaultValue as T) ?? defaultValue ?? null;
+    }
+
+    // Get plans for subscriptions
+    const planIds = subscriptions.map(s => s.planId);
+    const plans = await this.planRepository.findByIds(planIds);
+    const planMap = new Map(plans.map(p => [p.id, p]));
+
+    // Resolve using hierarchy
+    let resolvedValue: string | null = null;
+
+    for (const subscription of subscriptions) {
+      const plan = planMap.get(subscription.planId);
+      const value = this.resolver.resolve(feature, plan ?? null, subscription);
+      
+      // If this subscription has an override, use it immediately
+      if (subscription.getFeatureOverride(feature.id)) {
+        resolvedValue = value;
+        break;
+      }
+      
+      // Otherwise keep checking
+      if (!resolvedValue) {
+        resolvedValue = value;
+      }
+    }
+
+    return (resolvedValue as T) ?? defaultValue ?? null;
+  }
+
+  /**
+   * Get all feature values for a customer
+   */
+  async getAllFeatures(
+    customerExternalId: string
+  ): Promise<Map<string, string>> {
+    const customer = await this.customerRepository.findByExternalId(
+      customerExternalId
+    );
+    if (!customer) {
+      return new Map();
+    }
+
+    // Get all features
+    const features = await this.featureRepository.findAll();
+
+    // Get all active subscriptions
+    const subscriptions = await this.subscriptionRepository.findByCustomerId(
+      customer.id,
+      { status: SubscriptionStatus.Active }
+    );
+
+    // Get plans
+    const planIds = subscriptions.map(s => s.planId);
+    const plans = await this.planRepository.findByIds(planIds);
+    const planMap = new Map(plans.map(p => [p.id, p]));
+
+    // Resolve all features
+    return this.resolver.resolveAll(features, planMap, subscriptions);
+  }
+}
+```
+
+## Critical Rules
+
+1. **Resolution Order**:
+   - ALWAYS check subscription override first
+   - Then check plan value
+   - Finally fall back to feature default
+   - NEVER skip a level
+
+2. **Multiple Active Subscriptions**:
+   - Customer can have multiple active subscriptions
+   - If any subscription has override for a feature, that wins
+   - If multiple plans have values, use first one found
+   - Feature defaults used only if no subscription/plan specifies value
+
+3. **Override Types**:
+   ```typescript
+   export enum OverrideType {
+     Permanent = 'permanent',  // Persists through renewals
+     Temporary = 'temporary'   // Cleared on renewal
+   }
+   ```
+
+4. **Renewal Processing**:
+   - When subscription renews, clear temporary overrides
+   - Keep permanent overrides
+   - Recalculate expiration dates
+   - Update billing periods
+
+5. **Plan Transitions**:
+   - If plan has `on_expire_transition_to_plan_id`
+   - When subscription expires, create new subscription to target plan
+   - Overrides do NOT carry over to new subscription
+   - Customer may have multiple active subscriptions during transition
+
+6. **Testing Resolution**:
+   ```typescript
+   // Test must verify all three levels
+   test('resolves from subscription override > plan > default', async () => {
+     const feature = createFeature({ defaultValue: '10' });
+     const plan = createPlan({ featureValue: '50' });
+     const subscription = createSubscription({ 
+       override: { featureId: feature.id, value: '100' }
+     });
+
+     expect(await checker.getValue(customer.id, feature.key)).toBe('100');
+     
+     await subscription.removeFeatureOverride(feature.id);
+     expect(await checker.getValue(customer.id, feature.key)).toBe('50');
+     
+     await plan.removeFeatureValue(feature.id);
+     expect(await checker.getValue(customer.id, feature.key)).toBe('10');
+   });
+   ```
+
+## Common Mistakes to Avoid
+
+❌ **DON'T** check plan before subscription:
+```typescript
+// WRONG
+const planValue = plan.getFeatureValue(featureId);
+if (planValue) return planValue;
+const override = subscription.getFeatureOverride(featureId);
+if (override) return override.value;
+```
+
+✅ **DO** check subscription first:
+```typescript
+// CORRECT
+const override = subscription.getFeatureOverride(featureId);
+if (override) return override.value;
+const planValue = plan.getFeatureValue(featureId);
+if (planValue) return planValue;
+return feature.defaultValue;
+```
+
+❌ **DON'T** return null if feature not found in plan:
+```typescript
+// WRONG - Doesn't fall back to default
+const value = plan.getFeatureValue(featureId);
+return value ?? null;
+```
+
+✅ **DO** fall back to feature default:
+```typescript
+// CORRECT
+const value = plan.getFeatureValue(featureId);
+return value ?? feature.defaultValue;
+```

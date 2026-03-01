@@ -1,0 +1,303 @@
+---
+alwaysApply: true
+---
+
+# Naming Convention Rules
+
+## Database Naming (PostgreSQL)
+
+**ALL database identifiers MUST use `snake_case`:**
+
+```sql
+-- Tables
+CREATE TABLE products (...)
+CREATE TABLE product_features (...)
+CREATE TABLE plan_stripe_prices (...)
+
+-- Columns
+id TEXT PRIMARY KEY
+display_name TEXT
+created_at TIMESTAMP
+external_billing_id TEXT
+on_expire_transition_to_plan_id UUID
+```
+
+### Drizzle Schema
+
+```typescript
+// packages/core/src/infrastructure/database/schema.ts
+import { pgTable, text, timestamp, integer, jsonb } from 'drizzle-orm/pg-core';
+
+export const products = pgTable('products', {
+  id: text('id').primaryKey(),
+  key: text('key').notNull().unique(),
+  display_name: text('display_name').notNull(),
+  description: text('description'),
+  status: text('status').notNull(),
+  display_order: integer('display_order').notNull().default(0),
+  metadata: jsonb('metadata'),
+  created_at: timestamp('created_at').notNull().defaultNow(),
+  updated_at: timestamp('updated_at').notNull().defaultNow()
+});
+
+export const plan_features = pgTable('plan_features', {
+  id: text('id').primaryKey(),
+  plan_id: text('plan_id').notNull().references(() => plans.id, { onDelete: 'cascade' }),
+  feature_id: text('feature_id').notNull().references(() => features.id),
+  value: text('value').notNull(),
+  created_at: timestamp('created_at').notNull(),
+  updated_at: timestamp('updated_at').notNull()
+});
+```
+
+## TypeScript Naming
+
+### Files and Directories
+
+```
+packages/
+├── core/
+│   └── src/
+│       ├── domain/
+│       │   ├── entities/
+│       │   │   ├── Product.ts              # PascalCase for entity files
+│       │   │   ├── Plan.ts
+│       │   │   └── Subscription.ts
+│       │   ├── value-objects/              # kebab-case for directories
+│       │   │   ├── ProductStatus.ts        # PascalCase for value object files
+│       │   │   └── FeatureValueType.ts
+│       │   └── services/
+│       │       └── FeatureValueResolver.ts # PascalCase for service files
+│       ├── application/
+│       │   ├── services/
+│       │   │   └── ProductManagementService.ts
+│       │   ├── dtos/
+│       │   │   └── ProductDto.ts
+│       │   ├── mappers/
+│       │   │   └── ProductMapper.ts
+│       │   └── repositories/               # Interfaces
+│       │       └── IProductRepository.ts   # 'I' prefix for interfaces
+│       └── infrastructure/
+│           ├── database/
+│           │   ├── schema.ts               # lowercase for config files
+│           │   └── drizzle.ts
+│           ├── repositories/
+│           │   └── DrizzleProductRepository.ts  # Implementation name
+│           └── utils/
+│               └── uuid.ts
+```
+
+### Code Naming
+
+```typescript
+// Interfaces - 'I' prefix
+export interface IProductRepository { }
+export interface IFeatureRepository { }
+
+// Classes - PascalCase
+export class Product extends Entity<ProductProps> { }
+export class ProductManagementService { }
+export class DrizzleProductRepository implements IProductRepository { }
+
+// Enums - PascalCase, values lowercase
+export enum ProductStatus {
+  Active = 'active',
+  Inactive = 'inactive',
+  Archived = 'archived'
+}
+
+export enum FeatureValueType {
+  Toggle = 'toggle',
+  Numeric = 'numeric',
+  Text = 'text'
+}
+
+// Constants - SCREAMING_SNAKE_CASE
+const MAX_DISPLAY_NAME_LENGTH = 255;
+const DEFAULT_PAGE_SIZE = 50;
+
+// Functions and methods - camelCase
+function generateId(): string { }
+async createProduct(dto: CreateProductDto): Promise<ProductDto> { }
+
+// Variables - camelCase
+const subscriptionId = generateId();
+const createdAt = new Date();
+const featureResolver = new FeatureValueResolver();
+
+// Type aliases and DTOs - PascalCase
+export type CreateProductDto = z.infer<typeof CreateProductDtoSchema>;
+export interface ProductDto { }
+
+// Schema names - PascalCase + 'Schema' suffix
+export const CreateProductDtoSchema = z.object({ ... });
+export const UpdatePlanDtoSchema = z.object({ ... });
+```
+
+## Entity Properties
+
+```typescript
+// Entity Props interface - camelCase properties
+export interface ProductProps {
+  key: string;
+  displayName: string;            // NOT display_name
+  description?: string;
+  status: ProductStatus;
+  displayOrder: number;            // NOT display_order
+  metadata?: Record<string, unknown>;
+  createdAt: Date;                 // NOT created_at
+  updatedAt: Date;
+}
+
+// Database record - snake_case properties
+const record = {
+  id: '...',
+  key: 'test',
+  display_name: 'Test',            // Snake case
+  description: null,
+  status: 'active',
+  display_order: 0,
+  metadata: {},
+  created_at: new Date(),
+  updated_at: new Date()
+};
+
+// DTO - camelCase properties
+export interface ProductDto {
+  id: string;
+  key: string;
+  displayName: string;             // Camel case
+  description?: string;
+  status: string;
+  displayOrder: number;
+  metadata?: Record<string, unknown>;
+  createdAt: string;               // ISO string
+  updatedAt: string;
+}
+```
+
+## Mapper Transformations
+
+```typescript
+// Mapper handles case conversion
+export class ProductMapper {
+  static toDomain(record: any): Product {
+    return new Product({
+      key: record.key,
+      displayName: record.display_name,        // snake → camel
+      description: record.description,
+      status: record.status as ProductStatus,
+      displayOrder: record.display_order,      // snake → camel
+      metadata: record.metadata,
+      createdAt: new Date(record.created_at),  // snake → camel
+      updatedAt: new Date(record.updated_at)
+    }, record.id);
+  }
+
+  static toPersistence(product: Product): any {
+    return {
+      id: product.id,
+      key: product.key,
+      display_name: product.displayName,       // camel → snake
+      description: product.props.description,
+      status: product.status,
+      display_order: product.props.displayOrder, // camel → snake
+      metadata: product.props.metadata,
+      created_at: product.props.createdAt,     // camel → snake
+      updated_at: product.props.updatedAt
+    };
+  }
+}
+```
+
+## Foreign Keys and Junction Tables
+
+```typescript
+// Foreign key columns - snake_case with _id suffix
+plan_id: text('plan_id').references(() => plans.id)
+feature_id: text('feature_id').references(() => features.id)
+customer_id: text('customer_id').references(() => customers.id)
+renewal_cycle_id: text('renewal_cycle_id').references(() => renewal_cycles.id)
+
+// Junction tables - alphabetical order of table names
+export const plan_features = pgTable('plan_features', { ... });
+export const product_features = pgTable('product_features', { ... });
+
+// Special reference columns - descriptive snake_case
+on_expire_transition_to_plan_id: text('on_expire_transition_to_plan_id')
+  .references(() => plans.id)
+default_renewal_cycle_id: text('default_renewal_cycle_id')
+  .references(() => renewal_cycles.id)
+```
+
+## Boolean Naming
+
+```typescript
+// Database columns - descriptive flags
+auto_renew: boolean('auto_renew')
+encrypted: boolean('encrypted')
+
+// TypeScript properties - camelCase, descriptive
+autoRenew: boolean
+isEncrypted: boolean
+hasExpired: boolean
+
+// Methods - use 'is', 'has', 'can' prefixes
+canDelete(): boolean { }
+isActive(): boolean { }
+hasFeatureOverride(featureId: string): boolean { }
+```
+
+## Critical Rules
+
+1. **Database**: Always `snake_case`
+2. **TypeScript**: Always `camelCase` for variables/properties
+3. **Classes/Types**: Always `PascalCase`
+4. **Files**: PascalCase for classes, kebab-case for directories
+5. **Interfaces**: Prefix with 'I' for repository interfaces
+6. **Enums**: PascalCase name, lowercase values
+7. **Constants**: SCREAMING_SNAKE_CASE
+8. **Mappers**: Handle all case conversions
+
+## Why These Conventions
+
+- **PostgreSQL standard**: snake_case is the convention
+- **TypeScript/JavaScript standard**: camelCase is the convention
+- **Clear separation**: Easy to identify layer by naming
+- **Consistency**: Reduces cognitive load
+- **Type safety**: TypeScript catches mismatches
+- **Maintainability**: Clear patterns to follow
+
+## Common Mistakes
+
+❌ **DON'T** mix naming styles:
+```typescript
+// WRONG
+const display_name = product.displayName;  // Mixed styles
+const createdAt = record.created_at;       // Direct assignment without conversion
+```
+
+✅ **DO** use mappers for conversion:
+```typescript
+// CORRECT
+const product = ProductMapper.toDomain(record);  // Handles conversion
+const record = ProductMapper.toPersistence(product);
+```
+
+❌ **DON'T** use camelCase in database:
+```sql
+-- WRONG
+CREATE TABLE products (
+  displayName TEXT,
+  createdAt TIMESTAMP
+)
+```
+
+✅ **DO** use snake_case:
+```sql
+-- CORRECT
+CREATE TABLE products (
+  display_name TEXT,
+  created_at TIMESTAMP
+)
+```

@@ -1,0 +1,17 @@
+# Environment files (never commit secrets)
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+!.env.example
+
+# Test/database configuration (may contain connection strings, passwords)
+core.dotnet/tests/appsettings.json
+core.dotnet/tests/appsettings.Development.json
+
+# Keys and secrets
+*.pfx
+*.pem
+secrets.json
+appsettings.Secrets.json

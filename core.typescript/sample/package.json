@@ -1,0 +1,19 @@
+{
+  "name": "@subscrio/sample-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx index.ts",
+    "start:auto": "tsx index.ts --automated",
+    "dev": "tsx watch index.ts"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.0.0"
+  }
+}
+

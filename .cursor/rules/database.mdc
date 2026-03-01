@@ -1,0 +1,55 @@
+---
+alwaysApply: false
+---
+
+# Database Management Rules
+
+## CRITICAL: Database Reset Protection
+
+**NEVER run `scripts/reset-db.js` without explicit user permission.**
+
+This script drops and recreates the entire database schema, which would:
+- Destroy all production data
+- Wipe all user accounts, images, annotations
+- Cause irreversible data loss
+
+### Required Protocol:
+1. Always ask the user explicitly before running any database reset operations
+2. Explain the consequences clearly
+3. Wait for explicit confirmation
+4. Never assume permission to run destructive database operations
+
+### Safe Database Operations:
+- `npx drizzle-kit generate` - generates migration files (safe)
+- `npx drizzle-kit migrate` - applies migrations (safe, but ask for production)
+- `npx drizzle-kit push` - pushes schema changes (safe for development)
+
+### Dangerous Operations (REQUIRE PERMISSION):
+- `node scripts/reset-db.js` - DESTROYS ALL DATA
+- Any script that drops database schemas
+- Any operation that truncates or deletes tables without WHERE clauses# Database Management Rules
+
+## CRITICAL: Database Reset Protection
+
+**NEVER run `scripts/reset-db.js` without explicit user permission.**
+
+This script drops and recreates the entire database schema, which would:
+- Destroy all production data
+- Wipe all user accounts, images, annotations
+- Cause irreversible data loss
+
+### Required Protocol:
+1. Always ask the user explicitly before running any database reset operations
+2. Explain the consequences clearly
+3. Wait for explicit confirmation
+4. Never assume permission to run destructive database operations
+
+### Safe Database Operations:
+- `npx drizzle-kit generate` - generates migration files (safe)
+- `npx drizzle-kit migrate` - applies migrations (safe, but ask for production)
+- `npx drizzle-kit push` - pushes schema changes (safe for development)
+
+### Dangerous Operations (REQUIRE PERMISSION):
+- `node scripts/reset-db.js` - DESTROYS ALL DATA
+- Any script that drops database schemas
+- Any operation that truncates or deletes tables without WHERE clauses

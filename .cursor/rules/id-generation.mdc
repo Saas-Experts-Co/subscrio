@@ -1,0 +1,56 @@
+---
+alwaysApply: true
+---
+
+# ID Generation Rules
+
+## CRITICAL: UUIDv7 Only
+
+**ALL entity IDs MUST be UUIDv7 (not UUID v4 or any other version).**
+
+### Rules:
+1. **Never use `crypto.randomUUID()`** - this generates UUID v4
+2. **Always use a UUIDv7 generator utility**
+3. Generate IDs at the **application layer** (not database DEFAULT)
+4. IDs are generated **before** entity creation
+
+### Implementation:
+
+```typescript
+// Infrastructure utility (packages/core/src/infrastructure/utils/uuid.ts)
+import { uuidv7 } from 'uuidv7'; // Use a UUIDv7 library
+
+export function generateId(): string {
+  return uuidv7();
+}
+```
+
+### Usage Pattern:
+
+```typescript
+// In application services
+import { generateId } from '../../infrastructure/utils/uuid';
+
+async createProduct(dto: CreateProductDto): Promise<ProductDto> {
+  const id = generateId(); // Generate UUIDv7
+  const product = new Product({ ...dto }, id);
+  await this.productRepository.save(product);
+  return ProductMapper.toDto(product);
+}
+```
+
+### Database Schema:
+
+```typescript
+// Drizzle schema - id is VARCHAR/TEXT, not auto-generated
+export const products = pgTable('products', {
+  id: text('id').primaryKey(), // NOT .defaultRandom()
+  // ... other columns
+});
+```
+
+### Why UUIDv7:
+- Time-ordered (better for database indexing and performance)
+- Sortable by creation time
+- Globally unique
+- More efficient than UUID v4 for B-tree indexes

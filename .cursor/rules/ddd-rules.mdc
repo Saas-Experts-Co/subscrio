@@ -1,0 +1,42 @@
+---
+alwaysApply: true
+---
+
+# Cursor Rules for Subscrio
+
+These rules guide Cursor to generate consistent code that matches the requirements document.
+
+
+## Admin App Process Model
+- The **admin app must NOT call REST**. It **imports `@subscrio/core` directly** and runs in the **same Node process**.
+- Provide a singleton `Subscrio` instance in `packages/admin/src/lib/subscrio.ts` and reuse it across pages.
+
+## Database & Tests
+- Runtime (dev/prod): **No Docker**. The app connects to `DATABASE_URL` directly.
+- Tests: Use Dockerized Postgres only in CI (and optionally local). Each test suite creates a fresh DB and runs `installSchema()`.
+
+## DDD & Layers
+- Keep **domain entities** free of framework concerns.
+- Define **DTOs** for all public service methods; **Zod** validates inputs.
+- Use **mappers** for `Record ⇄ Domain ⇄ DTO` transformations.
+- Repositories are behind interfaces; **Drizzle** implements them.
+
+## Security & Auth
+- **API Keys**: required for REST endpoints; hashed at rest; scopes: `admin` or `readonly`.
+- **Admin Passphrase**: bcrypt hashed and stored in `system_config`; validated by core.
+- **Stripe**: only accept **verified** events (verification occurs outside and then passed in).
+
+## Coding Conventions
+- Use **named exports** for services and mappers where practical.
+- Prefer **async/await** over callbacks.
+- Error taxonomy: throw `ValidationError`, `NotFoundError`, `ConflictError`, `DomainError`, `AuthError` according to context.
+- Logging uses `LOG_LEVEL` and structured messages.
+
+## Deliverables Cursor Should Generate
+1. Vite configs for core/api/admin as specified.
+2. `Subscrio` main class exposing services defined in the requirements.
+3. Drizzle schema + repositories for all tables.
+4. Zod schemas + DTOs + mappers for each entity.
+5. Admin React pages bound to the singleton `Subscrio` instance.
+6. Optional REST API exposing the service layer with API key middleware.
+7. Vitest test harness with DB isolation and example E2E tests for feature resolution.

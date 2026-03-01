@@ -1,0 +1,135 @@
+---
+alwaysApply: true
+---
+
+# Mapper Pattern Rules
+
+## Three-Layer Data Transformation
+
+**ALL data transformations MUST go through mappers using this exact pattern:**
+
+```
+Database Record (snake_case) ⇄ Domain Entity (camelCase, rich types) ⇄ DTO (JSON-safe)
+```
+
+## Mapper Structure
+
+Every entity MUST have a corresponding mapper with three methods:
+
+```typescript
+// packages/core/src/application/mappers/ProductMapper.ts
+export class ProductMapper {
+  // Database Record → Domain Entity
+  static toDomain(record: any): Product {
+    return new Product(
+      {
+        key: record.key,
+        displayName: record.display_name,        // snake_case → camelCase
+        description: record.description,
+        status: record.status as ProductStatus,  // string → enum
+        displayOrder: record.display_order,
+        metadata: record.metadata,
+        createdAt: new Date(record.created_at),  // string/timestamp → Date
+        updatedAt: new Date(record.updated_at)
+      },
+      record.id
+    );
+  }
+
+  // Domain Entity → Database Record
+  static toPersistence(product: Product): any {
+    return {
+      id: product.id,
+      key: product.key,
+      display_name: product.displayName,         // camelCase → snake_case
+      description: product.props.description,
+      status: product.status,                    // enum → string
+      display_order: product.props.displayOrder,
+      metadata: product.props.metadata,
+      created_at: product.props.createdAt,       // Date → timestamp
+      updated_at: product.props.updatedAt
+    };
+  }
+
+  // Domain Entity → DTO
+  static toDto(product: Product): ProductDto {
+    return {
+      id: product.id,
+      key: product.key,
+      displayName: product.displayName,
+      description: product.props.description,
+      status: product.status,
+      displayOrder: product.props.displayOrder,
+      metadata: product.props.metadata,
+      createdAt: product.props.createdAt.toISOString(),  // Date → ISO string
+      updatedAt: product.props.updatedAt.toISOString()
+    };
+  }
+}
+```
+
+## Critical Rules
+
+1. **Naming Conventions**:
+   - Database: `snake_case` (PostgreSQL convention)
+   - Domain/DTO: `camelCase` (TypeScript convention)
+
+2. **Type Conversions**:
+   - Database strings → Domain enums
+   - Database timestamps → Domain Date objects
+   - Domain Date objects → DTO ISO strings
+
+3. **No Transformation Logic Outside Mappers**:
+   - Never do `snake_case` ↔ `camelCase` in services
+   - Never do type conversion in repositories
+   - Mappers are the ONLY place for these transformations
+
+4. **Mapper Location**:
+   - All mappers in `packages/core/src/application/mappers/`
+   - One mapper per entity
+   - Named `{Entity}Mapper.ts`
+
+5. **Repository Usage**:
+   ```typescript
+   // Repository receives/returns Domain entities
+   async save(product: Product): Promise<void> {
+     const record = ProductMapper.toPersistence(product);
+     await this.db.insert(products).values(record);
+   }
+
+   async findById(id: string): Promise<Product | null> {
+     const record = await this.db
+       .select()
+       .from(products)
+       .where(eq(products.id, id))
+       .limit(1);
+     
+     return record[0] ? ProductMapper.toDomain(record[0]) : null;
+   }
+   ```
+
+6. **Application Service Usage**:
+   ```typescript
+   // Service receives DTOs, works with Domain, returns DTOs
+   async createProduct(dto: CreateProductDto): Promise<ProductDto> {
+     // Validate DTO
+     CreateProductDtoSchema.parse(dto);
+     
+     // Create domain entity
+     const id = generateId();
+     const product = new Product({ ...dto, status: 'active' }, id);
+     
+     // Save via repository (mapper used inside)
+     await this.productRepository.save(product);
+     
+     // Return DTO
+     return ProductMapper.toDto(product);
+   }
+   ```
+
+## Benefits
+- Clean separation of concerns
+- Type safety at every layer
+- Single source of truth for transformations
+- Easy to test and maintain
+- Database schema can change without affecting API

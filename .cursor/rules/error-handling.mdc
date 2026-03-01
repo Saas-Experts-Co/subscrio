@@ -1,0 +1,385 @@
+---
+alwaysApply: true
+---
+
+# Error Handling Rules
+
+## Custom Error Classes
+
+**Use specific error classes for different error types:**
+
+```typescript
+// packages/core/src/application/errors/index.ts
+
+export class DomainError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DomainError';
+  }
+}
+
+export class ValidationError extends Error {
+  constructor(
+    message: string,
+    public readonly errors?: any[]
+  ) {
+    super(message);
+    this.name = 'ValidationError';
+  }
+}
+
+export class NotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NotFoundError';
+  }
+}
+
+export class ConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConflictError';
+  }
+}
+
+export class AuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AuthError';
+  }
+}
+
+export class ConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConfigurationError';
+  }
+}
+```
+
+## Error Usage Patterns
+
+### Application Services
+
+```typescript
+export class ProductManagementService {
+  async createProduct(dto: CreateProductDto): Promise<ProductDto> {
+    // 1. Validation errors - Zod validation failed
+    const result = CreateProductDtoSchema.safeParse(dto);
+    if (!result.success) {
+      throw new ValidationError(
+        'Invalid product data',
+        result.error.errors
+      );
+    }
+
+    // 2. Conflict errors - Resource already exists
+    const existing = await this.productRepository.findByKey(dto.key);
+    if (existing) {
+      throw new ConflictError(
+        `Product with key '${dto.key}' already exists`
+      );
+    }
+
+    // Create and save...
+  }
+
+  async getProduct(id: string): Promise<ProductDto> {
+    // 3. Not found errors - Resource doesn't exist
+    const product = await this.productRepository.findById(id);
+    if (!product) {
+      throw new NotFoundError(`Product with id '${id}' not found`);
+    }
+
+    return ProductMapper.toDto(product);
+  }
+
+  async deleteProduct(id: string): Promise<void> {
+    const product = await this.productRepository.findById(id);
+    if (!product) {
+      throw new NotFoundError(`Product with id '${id}' not found`);
+    }
+
+    // 4. Domain errors - Business rule violation
+    if (!product.canDelete()) {
+      throw new DomainError(
+        'Cannot delete product with status ' + product.status + 
+        '. Product must be archived before deletion.'
+      );
+    }
+
+    await this.productRepository.delete(id);
+  }
+}
+```
+
+### Domain Entities
+
+```typescript
+export class Product extends Entity<ProductProps> {
+  updateDisplayName(name: string): void {
+    // Domain validation
+    if (!name || name.trim().length === 0) {
+      throw new DomainError('Display name cannot be empty');
+    }
+    if (name.length > 255) {
+      throw new DomainError('Display name cannot exceed 255 characters');
+    }
+
+    this.props.displayName = name;
+    this.props.updatedAt = new Date();
+  }
+
+  archive(): void {
+    // Business rule enforcement
+    if (this.props.status === ProductStatus.Archived) {
+      throw new DomainError('Product is already archived');
+    }
+
+    this.props.status = ProductStatus.Archived;
+    this.props.updatedAt = new Date();
+  }
+}
+```
+
+### Authentication
+
+```typescript
+export class APIKeyManagementService {
+  async validateAPIKey(keyHash: string, requiredScope?: APIKeyScope): Promise<boolean> {
+    const apiKey = await this.apiKeyRepository.findByKeyHash(keyHash);
+    
+    // Not found
+    if (!apiKey) {
+      throw new AuthError('Invalid API key');
+    }
+
+    // Revoked
+    if (apiKey.status === APIKeyStatus.Revoked) {
+      throw new AuthError('API key has been revoked');
+    }
+
+    // Expired
+    if (apiKey.expiresAt && apiKey.expiresAt < new Date()) {
+      throw new AuthError('API key has expired');
+    }
+
+    // Scope check
+    if (requiredScope && apiKey.scope !== requiredScope && apiKey.scope !== APIKeyScope.Admin) {
+      throw new AuthError(`API key does not have required scope: ${requiredScope}`);
+    }
+
+    // Update last used
+    apiKey.updateLastUsed();
+    await this.apiKeyRepository.save(apiKey);
+
+    return true;
+  }
+}
+```
+
+### Configuration
+
+```typescript
+export function loadConfig(): SubscrioConfig {
+  try {
+    const config = {
+      database: {
+        connectionString: process.env.DATABASE_URL
+      },
+      // ... other config
+    };
+
+    // Validate using Zod
+    return configSchema.parse(config);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      throw new ConfigurationError(
+        `Invalid configuration: ${error.errors.map(e => e.message).join(', ')}`
+      );
+    }
+    throw new ConfigurationError(`Failed to load configuration: ${error.message}`);
+  }
+}
+```
+
+## REST API Error Handling
+
+```typescript
+// packages/api/src/middleware/errorHandler.ts
+export function errorHandler(
+  err: Error,
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) {
+  // Log error
+  console.error('Error:', err);
+
+  // Map error types to HTTP status codes
+  if (err instanceof ValidationError) {
+    return res.status(400).json({
+      error: 'Validation Error',
+      message: err.message,
+      details: err.errors
+    });
+  }
+
+  if (err instanceof NotFoundError) {
+    return res.status(404).json({
+      error: 'Not Found',
+      message: err.message
+    });
+  }
+
+  if (err instanceof ConflictError) {
+    return res.status(409).json({
+      error: 'Conflict',
+      message: err.message
+    });
+  }
+
+  if (err instanceof AuthError) {
+    return res.status(401).json({
+      error: 'Authentication Error',
+      message: err.message
+    });
+  }
+
+  if (err instanceof DomainError) {
+    return res.status(422).json({
+      error: 'Business Rule Violation',
+      message: err.message
+    });
+  }
+
+  // Unknown error
+  return res.status(500).json({
+    error: 'Internal Server Error',
+    message: process.env.NODE_ENV === 'production' 
+      ? 'An unexpected error occurred' 
+      : err.message
+  });
+}
+```
+
+## Admin App Error Handling
+
+```typescript
+// packages/admin/src/hooks/useProducts.ts
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { subscrio } from '../lib/subscrio';
+import { toast } from 'sonner';
+
+export function useCreateProduct() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: CreateProductDto) => 
+      subscrio.products.createProduct(data),
+    
+    onSuccess: (product) => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      toast.success('Product created successfully');
+    },
+    
+    onError: (error: Error) => {
+      if (error.name === 'ValidationError') {
+        toast.error('Invalid product data', {
+          description: error.message
+        });
+      } else if (error.name === 'ConflictError') {
+        toast.error('Product already exists', {
+          description: error.message
+        });
+      } else {
+        toast.error('Failed to create product', {
+          description: error.message
+        });
+      }
+    }
+  });
+}
+```
+
+## Critical Rules
+
+1. **Always Use Specific Error Classes**:
+   - ✅ `ValidationError` for input validation failures
+   - ✅ `NotFoundError` for missing resources
+   - ✅ `ConflictError` for duplicate resources
+   - ✅ `DomainError` for business rule violations
+   - ✅ `AuthError` for authentication failures
+   - ✅ `ConfigurationError` for config issues
+   - ❌ NEVER use generic `Error` for known error types
+
+2. **Error Messages**:
+   - Be specific and actionable
+   - Include relevant context (IDs, keys)
+   - Don't expose sensitive information
+   - Use present tense
+   - Example: `"Product with key 'pro-plan' already exists"` not `"Error"`
+
+3. **Error Propagation**:
+   - Let errors bubble up from domain to application to API
+   - Don't catch and re-throw as generic errors
+   - Add context as errors move up layers
+
+4. **Async Error Handling**:
+   ```typescript
+   // ✅ GOOD - Let errors propagate
+   async createProduct(dto: CreateProductDto): Promise<ProductDto> {
+     const product = await this.productRepository.save(...);
+     return ProductMapper.toDto(product);
+   }
+
+   // ❌ BAD - Swallowing errors
+   async createProduct(dto: CreateProductDto): Promise<ProductDto> {
+     try {
+       const product = await this.productRepository.save(...);
+       return ProductMapper.toDto(product);
+     } catch (error) {
+       console.error(error);
+       return null;  // Don't do this!
+     }
+   }
+   ```
+
+5. **Repository Error Handling**:
+   ```typescript
+   async findById(id: string): Promise<Product | null> {
+     try {
+       const [record] = await this.db
+         .select()
+         .from(products)
+         .where(eq(products.id, id));
+       
+       return record ? ProductMapper.toDomain(record) : null;
+     } catch (error) {
+       // Only catch database-specific errors
+       throw new Error(`Database error: ${error.message}`);
+     }
+   }
+   ```
+
+6. **Testing Errors**:
+   ```typescript
+   test('throws ConflictError for duplicate key', async () => {
+     await subscrio.products.createProduct({ key: 'test' });
+     
+     await expect(
+       subscrio.products.createProduct({ key: 'test' })
+     ).rejects.toThrow(ConflictError);
+     
+     await expect(
+       subscrio.products.createProduct({ key: 'test' })
+     ).rejects.toThrow('already exists');
+   });
+   ```
+
+## Benefits
+- Clear error semantics
+- Easy to handle different error types
+- Better debugging
+- Consistent API responses
+- Type-safe error handling

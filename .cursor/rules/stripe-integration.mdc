@@ -1,0 +1,413 @@
+---
+alwaysApply: true
+---
+
+# Stripe Integration Rules
+
+## CRITICAL: Webhook Verification Pattern
+
+**Subscrio NEVER verifies Stripe webhook signatures. The implementor MUST verify signatures before passing events to Subscrio.**
+
+## Architecture
+
+```
+Stripe → Implementor Webhook Endpoint → Verify Signature → Subscrio.processStripeEvent()
+```
+
+## Implementation Pattern
+
+### Implementor's Webhook Endpoint
+
+```typescript
+// Implementor's code (NOT in Subscrio)
+import express from 'express';
+import Stripe from 'stripe';
+import { Subscrio } from '@subscrio/core';
+
+const app = express();
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const subscrio = new Subscrio(config);
+
+// Webhook endpoint - receives raw body from Stripe
+app.post('/webhooks/stripe',
+  express.raw({ type: 'application/json' }),  // MUST use raw body
+  async (req, res) => {
+    const sig = req.headers['stripe-signature'] as string;
+    let event: Stripe.Event;
+
+    try {
+      // IMPLEMENTOR verifies signature
+      event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+    } catch (err) {
+      console.error('Webhook signature verification failed:', err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    // Signature verified - pass to Subscrio
+    try {
+      await subscrio.stripe.processStripeEvent(event);
+      res.json({ received: true });
+    } catch (err) {
+      console.error('Error processing Stripe event:', err);
+      res.status(500).json({ error: 'Processing failed' });
+    }
+  }
+);
+```
+
+### Subscrio's Event Processor
+
+```typescript
+// packages/core/src/application/services/StripeIntegrationService.ts
+import Stripe from 'stripe';
+
+export class StripeIntegrationService {
+  constructor(
+    private readonly subscriptionRepository: ISubscriptionRepository,
+    private readonly customerRepository: ICustomerRepository,
+    private readonly planRepository: IPlanRepository
+  ) {}
+
+  /**
+   * Process a verified Stripe event
+   * NOTE: Signature verification MUST be done by implementor before calling this
+   */
+  async processStripeEvent(event: Stripe.Event): Promise<void> {
+    // Event is already verified - process based on type
+    switch (event.type) {
+      case 'customer.subscription.created':
+        await this.handleSubscriptionCreated(
+          event.data.object as Stripe.Subscription
+        );
+        break;
+
+      case 'customer.subscription.updated':
+        await this.handleSubscriptionUpdated(
+          event.data.object as Stripe.Subscription
+        );
+        break;
+
+      case 'customer.subscription.deleted':
+        await this.handleSubscriptionDeleted(
+          event.data.object as Stripe.Subscription
+        );
+        break;
+
+      case 'invoice.payment_succeeded':
+        await this.handlePaymentSucceeded(
+          event.data.object as Stripe.Invoice
+        );
+        break;
+
+      case 'invoice.payment_failed':
+        await this.handlePaymentFailed(
+          event.data.object as Stripe.Invoice
+        );
+        break;
+
+      case 'customer.subscription.trial_will_end':
+        await this.handleTrialWillEnd(
+          event.data.object as Stripe.Subscription
+        );
+        break;
+
+      default:
+        // Ignore unhandled event types
+        console.log(`Unhandled Stripe event type: ${event.type}`);
+    }
+  }
+
+  private async handleSubscriptionCreated(
+    stripeSubscription: Stripe.Subscription
+  ): Promise<void> {
+    // Find customer by Stripe customer ID
+    const customer = await this.customerRepository.findByExternalBillingId(
+      stripeSubscription.customer as string
+    );
+    if (!customer) {
+      throw new NotFoundError(
+        `Customer not found for Stripe customer ID: ${stripeSubscription.customer}`
+      );
+    }
+
+    // Find plan by Stripe price ID
+    const plan = await this.findPlanByStripePriceId(
+      stripeSubscription.items.data[0].price.id
+    );
+    if (!plan) {
+      throw new NotFoundError(
+        `Plan not found for Stripe price ID: ${stripeSubscription.items.data[0].price.id}`
+      );
+    }
+
+    // Create subscription in Subscrio
+    const subscription = new Subscription({
+      customerId: customer.id,
+      planId: plan.id,
+      status: this.mapStripeStatus(stripeSubscription.status),
+      activationDate: new Date(stripeSubscription.created * 1000),
+      currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000),
+      currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000),
+      trialEndDate: stripeSubscription.trial_end 
+        ? new Date(stripeSubscription.trial_end * 1000) 
+        : null,
+      stripeSubscriptionId: stripeSubscription.id,
+      autoRenew: !stripeSubscription.cancel_at_period_end,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }, generateId());
+
+    await this.subscriptionRepository.save(subscription);
+  }
+
+  private async handleSubscriptionUpdated(
+    stripeSubscription: Stripe.Subscription
+  ): Promise<void> {
+    // Find existing subscription by Stripe ID
+    const subscription = await this.subscriptionRepository.findByStripeId(
+      stripeSubscription.id
+    );
+    if (!subscription) {
+      // If not found, treat as creation
+      return this.handleSubscriptionCreated(stripeSubscription);
+    }
+
+    // Update subscription properties
+    subscription.props.status = this.mapStripeStatus(stripeSubscription.status);
+    subscription.props.currentPeriodStart = new Date(
+      stripeSubscription.current_period_start * 1000
+    );
+    subscription.props.currentPeriodEnd = new Date(
+      stripeSubscription.current_period_end * 1000
+    );
+    subscription.props.autoRenew = !stripeSubscription.cancel_at_period_end;
+
+    if (stripeSubscription.canceled_at) {
+      subscription.props.cancellationDate = new Date(
+        stripeSubscription.canceled_at * 1000
+      );
+    }
+
+    subscription.props.updatedAt = new Date();
+
+    await this.subscriptionRepository.save(subscription);
+  }
+
+  private async handleSubscriptionDeleted(
+    stripeSubscription: Stripe.Subscription
+  ): Promise<void> {
+    const subscription = await this.subscriptionRepository.findByStripeId(
+      stripeSubscription.id
+    );
+    if (!subscription) {
+      return; // Already deleted or never existed
+    }
+
+    subscription.expire();
+    await this.subscriptionRepository.save(subscription);
+  }
+
+  private mapStripeStatus(
+    stripeStatus: Stripe.Subscription.Status
+  ): SubscriptionStatus {
+    switch (stripeStatus) {
+      case 'active':
+        return SubscriptionStatus.Active;
+      case 'trialing':
+        return SubscriptionStatus.Trial;
+      case 'canceled':
+      case 'unpaid':
+        return SubscriptionStatus.Cancelled;
+      case 'past_due':
+        return SubscriptionStatus.Suspended;
+      case 'incomplete':
+      case 'incomplete_expired':
+        return SubscriptionStatus.Expired;
+      default:
+        return SubscriptionStatus.Suspended;
+    }
+  }
+}
+```
+
+### Price Mapping
+
+```typescript
+// Associating Stripe prices with plans
+export class PlanManagementService {
+  /**
+   * Associate a Stripe price with a plan and renewal cycle combination
+   */
+  async setStripePriceForCycle(
+    planId: string,
+    renewalCycleId: string,
+    stripePriceId: string
+  ): Promise<void> {
+    const plan = await this.planRepository.findById(planId);
+    if (!plan) {
+      throw new NotFoundError(`Plan ${planId} not found`);
+    }
+
+    const cycle = await this.renewalCycleRepository.findById(renewalCycleId);
+    if (!cycle) {
+      throw new NotFoundError(`Renewal cycle ${renewalCycleId} not found`);
+    }
+
+    // Store mapping in database
+    await this.db.insert(planStripePrices).values({
+      id: generateId(),
+      plan_id: planId,
+      renewal_cycle_id: renewalCycleId,
+      stripe_price_id: stripePriceId,
+      created_at: new Date(),
+      updated_at: new Date()
+    }).onConflictDoUpdate({
+      target: [planStripePrices.plan_id, planStripePrices.renewal_cycle_id],
+      set: {
+        stripe_price_id: stripePriceId,
+        updated_at: new Date()
+      }
+    });
+  }
+
+  /**
+   * Get Stripe price for a plan and renewal cycle
+   */
+  async getStripePriceForCycle(
+    planId: string,
+    renewalCycleId: string
+  ): Promise<string | null> {
+    const [record] = await this.db
+      .select()
+      .from(planStripePrices)
+      .where(
+        and(
+          eq(planStripePrices.plan_id, planId),
+          eq(planStripePrices.renewal_cycle_id, renewalCycleId)
+        )
+      )
+      .limit(1);
+
+    return record?.stripe_price_id ?? null;
+  }
+}
+```
+
+## Critical Rules
+
+1. **Webhook Verification**:
+   - ❌ Subscrio NEVER verifies signatures
+   - ✅ Implementor MUST verify before calling Subscrio
+   - ✅ Use `express.raw()` for webhook endpoint
+   - ✅ Use Stripe SDK's `constructEvent()`
+
+2. **Event Processing**:
+   - Handle events idempotently
+   - Log unhandled event types (don't error)
+   - Return 200 even if event ignored
+   - Throw errors for processing failures
+
+3. **Customer Mapping**:
+   - Store Stripe customer ID in `external_billing_id`
+   - Find customer by `external_billing_id` when processing events
+   - Create customer first, then create Stripe customer
+
+4. **Price Mapping**:
+   - Store in `plan_stripe_prices` table
+   - Map plan + renewal cycle → Stripe price ID
+   - Unique constraint on (plan_id, renewal_cycle_id)
+
+5. **Subscription Syncing**:
+   - Map Stripe statuses to Subscrio statuses
+   - Sync period dates from Stripe
+   - Handle trial periods
+   - Track cancellation dates
+
+6. **Optional Integration**:
+   - Stripe is completely optional
+   - Library works without Stripe config
+   - Check if Stripe configured before making API calls
+
+7. **Creating Stripe Subscriptions**:
+   ```typescript
+   async createStripeSubscription(
+     customerExternalId: string,
+     planId: string,
+     renewalCycleId: string
+   ): Promise<SubscriptionDto> {
+     // Find customer
+     const customer = await this.customerRepository.findByExternalId(
+       customerExternalId
+     );
+     
+     // Get Stripe price for plan/cycle
+     const stripePriceId = await this.planService.getStripePriceForCycle(
+       planId,
+       renewalCycleId
+     );
+     
+     // Create in Stripe
+     const stripeSubscription = await this.stripe.subscriptions.create({
+       customer: customer.externalBillingId,
+       items: [{ price: stripePriceId }]
+     });
+     
+     // Create in Subscrio (links via stripe_subscription_id)
+     return this.subscriptionService.createSubscription({
+       customerExternalId,
+       planId,
+       renewalCycleId,
+       stripeSubscriptionId: stripeSubscription.id
+     });
+   }
+   ```
+
+## Testing
+
+```typescript
+describe('Stripe Integration', () => {
+  test('processes subscription.created event', async () => {
+    const customer = await createCustomer({ 
+      externalBillingId: 'cus_123' 
+    });
+    
+    const mockEvent: Stripe.Event = {
+      type: 'customer.subscription.created',
+      data: {
+        object: {
+          id: 'sub_123',
+          customer: 'cus_123',
+          status: 'active',
+          items: {
+            data: [{ price: { id: 'price_123' } }]
+          },
+          current_period_start: 1234567890,
+          current_period_end: 1267890123
+        }
+      }
+    };
+    
+    await subscrio.stripe.processStripeEvent(mockEvent);
+    
+    const subscription = await subscrio.subscriptions.findByStripeId('sub_123');
+    expect(subscription).toBeDefined();
+    expect(subscription.status).toBe('active');
+  });
+});
+```
+
+## Common Mistakes
+
+❌ **DON'T** verify webhooks in Subscrio
+❌ **DON'T** use JSON body parser for webhook endpoint
+❌ **DON'T** assume all events have same structure
+❌ **DON'T** error on unhandled event types
+
+✅ **DO** verify in implementor's code
+✅ **DO** use raw body parser
+✅ **DO** handle each event type specifically
+✅ **DO** ignore unknown events gracefully

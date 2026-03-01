@@ -1,0 +1,125 @@
+{% extends "main.html" %}
+{% block tabs %}
+  {{ super() }}
+  {% set hero_title = page.meta.get("hero_title", "The missing layer in your SaaS stack") %}
+  {% set hero_description = page.meta.get("hero_description", config.site_description) %}
+  {% set hero_primary = page.meta.get("hero_primary", {}) %}
+  {% set hero_secondary = page.meta.get("hero_secondary", {}) %}
+  {% set stats = page.meta.get("stats", []) %}
+  {% set why = page.meta.get("why", {}) %}
+  {% set why_items = why.get("items", []) %}
+  {% set workflow = page.meta.get("workflow", {}) %}
+  {% set workflow_steps = workflow.get("steps", []) %}
+  {% set benefits = page.meta.get("benefits", {}) %}
+  {% set benefit_cards = benefits.get("cards", []) %}
+  {% set cta_banner = page.meta.get("cta_banner", {}) %}
+  <section class="home-hero">
+    <div class="md-grid home-hero__grid md-typeset">
+      <div class="home-hero__content">
+        <p class="eyebrow">Subscrio Library</p>
+        <h1>{{ hero_title }}</h1>
+        <p class="lede">{{ hero_description }}</p>
+        <div class="home-hero__actions">
+          {% if hero_primary %}
+            <a href="{{ hero_primary.link | url }}" class="md-button md-button--primary" title="{{ hero_primary.title | default(hero_primary.label) | e }}">
+              {{ hero_primary.label }}
+            </a>
+          {% endif %}
+          {% if hero_secondary %}
+            <a href="{{ hero_secondary.link | url }}" class="md-button" title="{{ hero_secondary.title | default(hero_secondary.label) | e }}">
+              {{ hero_secondary.label }}
+            </a>
+          {% endif %}
+        </div>
+      </div>
+      {% if stats %}
+        <div class="home-hero__stats">
+          {% for stat in stats %}
+            <div class="home-hero__stat">
+              <span>{{ stat.value }}</span>
+              <p>{{ stat.label }}</p>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  </section>
+  {% if why_items %}
+    <section class="home-section home-why">
+      <div class="md-grid md-typeset">
+        <header>
+          <p class="eyebrow">Why Subscrio</p>
+          <h2>{{ why.title }}</h2>
+        </header>
+        <div class="home-why__grid">
+          {% for item in why_items %}
+            <article>
+              <h3>{{ item.heading }}</h3>
+              <p>{{ item.copy }}</p>
+            </article>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+  {% endif %}
+  {% if workflow_steps %}
+    <section class="home-section home-workflow">
+      <div class="md-grid md-typeset">
+        <header>
+          <p class="eyebrow">How it works</p>
+          <h2>{{ workflow.title }}</h2>
+        </header>
+        <ol class="home-workflow__steps">
+          {% for step in workflow_steps %}
+            <li>
+              <p class="step-title">{{ step.title }}</p>
+              <p class="step-subtitle">{{ step.subtitle }}</p>
+              <p class="step-detail">{{ step.detail }}</p>
+            </li>
+          {% endfor %}
+        </ol>
+      </div>
+    </section>
+  {% endif %}
+  {% if benefit_cards %}
+    <section class="home-section home-benefits">
+      <div class="md-grid md-typeset">
+        <header>
+          <p class="eyebrow">Key benefits</p>
+          <h2>{{ benefits.title }}</h2>
+        </header>
+        <div class="home-benefits__cards">
+          {% for card in benefit_cards %}
+            <article>
+              <h3>{{ card.title }}</h3>
+              <p>{{ card.detail }}</p>
+            </article>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+  {% endif %}
+  {% if cta_banner %}
+    <section class="home-section home-cta">
+      <div class="md-grid md-typeset home-cta__inner">
+        <div>
+          <p class="eyebrow">Next step</p>
+          <h2>{{ cta_banner.title }}</h2>
+          <p>{{ cta_banner.description }}</p>
+        </div>
+        <div class="home-cta__actions">
+          {% if cta_banner.primary %}
+            <a href="{{ cta_banner.primary.link | url }}" class="md-button md-button--primary">
+              {{ cta_banner.primary.label }}
+            </a>
+          {% endif %}
+          {% if cta_banner.secondary %}
+            <a href="{{ cta_banner.secondary.link | url }}" class="md-button">
+              {{ cta_banner.secondary.label }}
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+  {% endif %}
+{% endblock %}

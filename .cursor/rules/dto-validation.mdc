@@ -1,0 +1,255 @@
+---
+alwaysApply: true
+---
+
+# DTO and Validation Rules
+
+## CRITICAL: All Public APIs Use DTOs with Zod Validation
+
+**Every application service method MUST use DTOs validated with Zod schemas.**
+
+## DTO Structure Pattern
+
+```typescript
+// packages/core/src/application/dtos/ProductDto.ts
+import { z } from 'zod';
+
+// CREATE DTO - Input for creating new entities
+export const CreateProductDtoSchema = z.object({
+  key: z.string()
+    .min(1, 'Key is required')
+    .max(255, 'Key too long')
+    .regex(/^[a-z0-9-]+$/, 'Key must be lowercase alphanumeric with hyphens'),
+  displayName: z.string()
+    .min(1, 'Display name is required')
+    .max(255, 'Display name too long'),
+  description: z.string().max(1000).optional(),
+  displayOrder: z.number().int().min(0).optional(),
+  metadata: z.record(z.unknown()).optional()
+});
+
+export type CreateProductDto = z.infer<typeof CreateProductDtoSchema>;
+
+// UPDATE DTO - Input for updating entities (all fields optional)
+export const UpdateProductDtoSchema = CreateProductDtoSchema.partial();
+export type UpdateProductDto = z.infer<typeof UpdateProductDtoSchema>;
+
+// OUTPUT DTO - What clients receive
+export interface ProductDto {
+  id: string;
+  key: string;
+  displayName: string;
+  description?: string;
+  status: string;  // String, not enum (for JSON compatibility)
+  displayOrder: number;
+  metadata?: Record<string, unknown>;
+  createdAt: string;  // ISO 8601 string
+  updatedAt: string;  // ISO 8601 string
+}
+
+// FILTER/QUERY DTO - Input for list/search operations
+export const ProductFilterDtoSchema = z.object({
+  status: z.enum(['active', 'inactive', 'archived']).optional(),
+  search: z.string().optional(),
+  limit: z.number().int().min(1).max(100).default(50),
+  offset: z.number().int().min(0).default(0),
+  sortBy: z.enum(['displayName', 'createdAt', 'displayOrder']).optional(),
+  sortOrder: z.enum(['asc', 'desc']).default('asc')
+});
+
+export type ProductFilterDto = z.infer<typeof ProductFilterDtoSchema>;
+```
+
+## Application Service Pattern
+
+```typescript
+// packages/core/src/application/services/ProductManagementService.ts
+import { CreateProductDto, CreateProductDtoSchema, ProductDto } from '../dtos/ProductDto';
+import { ValidationError } from '../errors/ValidationError';
+
+export class ProductManagementService {
+  constructor(private readonly productRepository: IProductRepository) {}
+
+  async createProduct(dto: CreateProductDto): Promise<ProductDto> {
+    // 1. VALIDATE INPUT
+    const validationResult = CreateProductDtoSchema.safeParse(dto);
+    if (!validationResult.success) {
+      throw new ValidationError(
+        'Invalid product data',
+        validationResult.error.errors
+      );
+    }
+    const validatedDto = validationResult.data;
+
+    // 2. BUSINESS RULES
+    const existing = await this.productRepository.findByKey(validatedDto.key);
+    if (existing) {
+      throw new ConflictError(`Product with key '${validatedDto.key}' already exists`);
+    }
+
+    // 3. CREATE ENTITY
+    const id = generateId();
+    const product = new Product({
+      key: validatedDto.key,
+      displayName: validatedDto.displayName,
+      description: validatedDto.description,
+      status: ProductStatus.Active,
+      displayOrder: validatedDto.displayOrder ?? 0,
+      metadata: validatedDto.metadata,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }, id);
+
+    // 4. PERSIST
+    await this.productRepository.save(product);
+
+    // 5. RETURN DTO
+    return ProductMapper.toDto(product);
+  }
+
+  async updateProduct(id: string, dto: UpdateProductDto): Promise<ProductDto> {
+    // Validate
+    const validationResult = UpdateProductDtoSchema.safeParse(dto);
+    if (!validationResult.success) {
+      throw new ValidationError(
+        'Invalid update data',
+        validationResult.error.errors
+      );
+    }
+    const validatedDto = validationResult.data;
+
+    // Find existing
+    const product = await this.productRepository.findById(id);
+    if (!product) {
+      throw new NotFoundError(`Product with id '${id}' not found`);
+    }
+
+    // Update properties
+    if (validatedDto.displayName !== undefined) {
+      product.updateDisplayName(validatedDto.displayName);
+    }
+    if (validatedDto.description !== undefined) {
+      product.props.description = validatedDto.description;
+    }
+    // ... other updates
+
+    product.props.updatedAt = new Date();
+
+    // Save
+    await this.productRepository.save(product);
+
+    return ProductMapper.toDto(product);
+  }
+
+  async listProducts(filters: ProductFilterDto): Promise<ProductDto[]> {
+    // Validate filters
+    const validationResult = ProductFilterDtoSchema.safeParse(filters);
+    if (!validationResult.success) {
+      throw new ValidationError(
+        'Invalid filter parameters',
+        validationResult.error.errors
+      );
+    }
+
+    const products = await this.productRepository.findAll(validationResult.data);
+    return products.map(ProductMapper.toDto);
+  }
+}
+```
+
+## Critical Rules
+
+1. **DTO Location**:
+   - All DTOs in `packages/core/src/application/dtos/`
+   - One file per entity: `{Entity}Dto.ts`
+
+2. **DTO Types Required**:
+   - `Create{Entity}DtoSchema` - For creation
+   - `Create{Entity}Dto` - Type inferred from schema
+   - `Update{Entity}DtoSchema` - For updates (usually `.partial()`)
+   - `Update{Entity}Dto` - Type inferred
+   - `{Entity}Dto` - Output interface (not schema)
+   - `{Entity}FilterDto` - For queries/lists (optional)
+
+3. **Zod Schema Patterns**:
+   ```typescript
+   // String validation
+   z.string().min(1).max(255)
+   z.string().email()
+   z.string().regex(/^[a-z0-9-]+$/)
+   z.string().uuid()
+   
+   // Number validation
+   z.number().int().min(0).max(100)
+   z.number().positive()
+   
+   // Enum validation
+   z.enum(['active', 'inactive', 'archived'])
+   
+   // Optional fields
+   z.string().optional()
+   z.string().nullable()
+   z.string().optional().default('default-value')
+   
+   // Nested objects
+   z.object({ ... })
+   z.record(z.unknown())  // For metadata
+   
+   // Arrays
+   z.array(z.string())
+   ```
+
+4. **Validation in Services**:
+   - ALWAYS use `safeParse()` (not `parse()`)
+   - Check `success` before using data
+   - Throw `ValidationError` with Zod errors
+   - Validate ALL inputs (create, update, filters)
+
+5. **Output DTOs**:
+   - Use interface (not Zod schema)
+   - JSON-safe types only
+   - Dates as ISO strings
+   - Enums as strings
+   - No domain objects
+
+6. **Date Handling**:
+   ```typescript
+   // Input DTO - Accept ISO strings or Date
+   createdAt: z.string().datetime().or(z.date())
+   
+   // Output DTO - Always ISO strings
+   interface ProductDto {
+     createdAt: string;  // ISO 8601
+     updatedAt: string;
+   }
+   
+   // Mapper
+   static toDto(product: Product): ProductDto {
+     return {
+       createdAt: product.props.createdAt.toISOString(),
+       updatedAt: product.props.updatedAt.toISOString()
+     };
+   }
+   ```
+
+7. **Error Handling**:
+   ```typescript
+   // Custom validation error
+   export class ValidationError extends Error {
+     constructor(
+       message: string,
+       public readonly errors: z.ZodError['errors']
+     ) {
+       super(message);
+       this.name = 'ValidationError';
+     }
+   }
+   ```
+
+## Benefits
+- Strong input validation
+- Type-safe API boundaries
+- Clear separation of input/output
+- Self-documenting APIs
+- Prevents invalid data from entering system
+- Great TypeScript inference

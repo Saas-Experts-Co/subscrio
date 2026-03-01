@@ -1,0 +1,14 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+
+## Toast Alerts
+Always prompt the developer before injecting toast alerts into the UI to ensure they are necessary and appropriate for the user experience.
+
+Never use browser prompts for confirm dialogs or alerts. Always use custom dialogs.
+
+If you do inject a toast alert, ensure it never displayes for more than 4 seconds.
+
