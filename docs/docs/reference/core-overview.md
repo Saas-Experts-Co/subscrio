@@ -18,6 +18,8 @@ Complete documentation of all data structures and methods exposed by Subscrio Co
     ```
 
 === ".NET"
+    Direct construction:
+
     ```csharp
     using Subscrio.Core;
 
@@ -29,6 +31,8 @@ Complete documentation of all data structures and methods exposed by Subscrio Co
         }
     });
     ```
+
+    **Dependency injection (ASP.NET Core / generic host):** Register Subscrio with the service collection so it is resolved per scope (recommended for web apps). Add `using Subscrio.Core.DependencyInjection;` and call `services.AddSubscrio(config, ServiceLifetime.Scoped)`. Then inject `Subscrio` in controllers or minimal API handlers. Use `ServiceLifetime.Scoped` for web apps; use `Transient` for console or background services. See [Getting Started](getting-started.md) for a full bootstrap and DI example.
 
 ## Method Catalog
 

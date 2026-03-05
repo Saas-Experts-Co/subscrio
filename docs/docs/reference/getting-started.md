@@ -20,7 +20,6 @@
     - .NET 8.0+ SDK.
     - Add the `Subscrio.Core` NuGet package to your project.
     - Set `DATABASE_URL` environment variable (e.g., `Host=localhost;Port=5432;Database=subscrio;Username=postgres;Password=postgres`).
-
 ## Step 1 – Initialize Subscrio
 
 === "TypeScript"
@@ -88,6 +87,17 @@
     ```
 
     Use `await using` (or `Dispose()` when done) to ensure proper cleanup.
+
+    **Using dependency injection (web or host-based apps):** Register Subscrio so it is created per scope (e.g. per request) and injected into controllers or minimal API handlers:
+
+    ```csharp
+    using Subscrio.Core.DependencyInjection;  // and Subscrio.Core.Config for ConfigLoader
+
+    var config = ConfigLoader.Load();
+    builder.Services.AddSubscrio(config, ServiceLifetime.Scoped);
+    ```
+
+    Then inject `Subscrio` via constructor (e.g. `public MyController(Subscrio subscrio)`) or as a parameter in minimal API (e.g. `app.MapGet("/products", async (Subscrio subscrio) => ...)`). Use `ServiceLifetime.Scoped` for web apps so each request gets its own instance and DbContext; use `Transient` for console or background services. You can build `SubscrioConfig` from `ConfigLoader.Load()` or from your own config (e.g. appsettings). See [Core Overview](core-overview.md) for the constructor and config reference.
 
 ### Running Migrations
 

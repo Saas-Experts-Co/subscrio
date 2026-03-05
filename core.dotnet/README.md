@@ -158,6 +158,23 @@ Console.WriteLine($"Customer can have {maxUsers} users"); // "100"
 
 Subscrio supports dependency injection and can be registered in your DI container. **This is the recommended approach for web applications** and provides better lifetime management.
 
+### Quick setup (when you want to use DI)
+
+1. **Add the using** for the extension: `using Subscrio.Core.DependencyInjection;`  
+   (You may also need `using Microsoft.Extensions.DependencyInjection;` for `ServiceLifetime` if not in scope.)
+
+2. **Register Subscrio** in your host builder (e.g. in `Program.cs`):
+   ```csharp
+   var config = ConfigLoader.Load(); // or build SubscrioConfig from appsettings/options
+   builder.Services.AddSubscrio(config, ServiceLifetime.Scoped);
+   ```
+
+3. **Inject `Subscrio`** where you need it: constructor injection in controllers or services, or as a parameter in minimal API handlers (e.g. `app.MapGet("/products", async (Subscrio subscrio) => ...)`).
+
+**Config from appsettings (optional):** You can build `SubscrioConfig` from your own config (e.g. `builder.Configuration` or `IOptions`) and pass it to `AddSubscrio`. The examples below use `ConfigLoader.Load()` for simplicity.
+
+See the examples below for full ASP.NET Core, console, and controller usage.
+
 ### Registration
 
 #### ASP.NET Core Web API
