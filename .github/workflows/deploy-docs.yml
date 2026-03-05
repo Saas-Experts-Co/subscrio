@@ -1,6 +1,6 @@
-# Build and deploy Subscrio documentation to GitHub Pages (docs.subscrio.com).
-# Runs on push to main when files under docs/ change.
-name: Deploy documentation
+# Adapted from original documentation.yml when docs lived at repo root.
+# Docs now live under docs/; build runs from docs/, artifact is docs/site.
+name: documentation
 
 on:
   push:
@@ -10,45 +10,86 @@ on:
       - 'docs/**'
       - '.github/workflows/deploy-docs.yml'
 
+env:
+  PYTHON_VERSION: '3.x'
+
 permissions:
   contents: write
-
-concurrency:
-  group: deploy-docs
-  cancel-in-progress: false
+  id-token: write
+  pages: write
 
 jobs:
-  deploy:
+  documentation:
+    name: Build documentation
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Checkout repository
+        uses: actions/checkout@v5
         with:
-          python-version: '3.12'
+          fetch-depth: 0
+          sparse-checkout: |
+            docs
+            .github
+
+      - name: Set up Python runtime
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: docs/requirements.txt
+
+      - name: Set up build cache
+        uses: actions/cache/restore@v4
+        with:
+          key: mkdocs-material-${{ hashfiles('docs/**') }}
+          path: ~/.cache
+          restore-keys: |
+            mkdocs-material-
 
       - name: Install dependencies
+        run: sudo apt-get install -y pngquant
+
+      - name: Install Python dependencies
         run: |
-          pip install --upgrade pip
+          pip install mkdocs-material
           pip install -r docs/requirements.txt
 
-      - name: Build MkDocs site
-        working-directory: docs
+      - name: Install Insiders build
+        if: github.event.repository.fork == false
         env:
-          GOOGLE_ANALYTICS_KEY: ${{ vars.GOOGLE_ANALYTICS_KEY || '' }}
-        run: python -m mkdocs build --strict
-
-      - name: Copy CNAME for custom domain
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          if [ -f docs/CNAME ]; then
-            cp docs/CNAME docs/site/
-          fi
+          git clone --depth 1 https://${GH_TOKEN}@github.com/squidfunk/mkdocs-material-insiders.git
+          pip install -e mkdocs-material-insiders
+          cp mkdocs-material-insiders/mkdocs.yml docs/mkdocs.yml
+          rm -rf docs/material
+          cp -r mkdocs-material-insiders/material docs/material
+
+      - name: Build documentation
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GOOGLE_ANALYTICS_KEY: ${{ secrets.GOOGLE_ANALYTICS_KEY }}
+        run: |
+          cd docs && mkdocs build --clean
+          mkdocs --version
+
+      - name: Adjust permissions
+        run: |
+          chmod -c -R +rX docs/site/ | while read line; do
+            echo "::warning title=Invalid file permissions automatically fixed::$line"
+          done
+
+      - name: Upload to GitHub Pages
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: docs/site
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
+        uses: actions/deploy-pages@v4
+
+      - name: Save build cache
+        uses: actions/cache/save@v4
+        if: always()
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs/site
-          force_orphan: true
+          key: mkdocs-material-${{ hashfiles('docs/**') }}
+          path: ~/.cache

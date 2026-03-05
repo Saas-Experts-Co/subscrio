@@ -593,7 +593,7 @@ All service-level documentation now lives in dedicated markdown files so each me
 | FeatureCheckerService | Runtime feature resolution APIs | [`feature-checker.md`](./feature-checker.md) |
 | StripeIntegrationService | Stripe webhook processing & helpers | [`stripe-integration.md`](./stripe-integration.md) |
 
-> Every service doc follows the [Service Reference Template](./SERVICE_DOC_TEMPLATE.md), which standardizes sections for usage, inputs/outputs, DTOs, expected results, errors, and working examples.
+> Every service doc follows a standard structure that standardizes sections for usage, inputs/outputs, DTOs, expected results, errors, and working examples.
 
 ## Additional Reference Guides
 
