@@ -165,6 +165,7 @@ Subscrio supports dependency injection and can be registered in your DI containe
 ```csharp
 using Subscrio.Core;
 using Subscrio.Core.Config;
+using Subscrio.Core.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -193,6 +194,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Subscrio.Core;
 using Subscrio.Core.Config;
+using Subscrio.Core.DependencyInjection;
 
 var config = ConfigLoader.Load();
 
