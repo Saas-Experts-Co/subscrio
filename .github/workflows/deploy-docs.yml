@@ -54,17 +54,6 @@ jobs:
           pip install mkdocs-material
           pip install -r docs/requirements.txt
 
-      - name: Install Insiders build
-        if: github.event.repository.fork == false
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          git clone --depth 1 https://${GH_TOKEN}@github.com/squidfunk/mkdocs-material-insiders.git
-          pip install -e mkdocs-material-insiders
-          cp mkdocs-material-insiders/mkdocs.yml docs/mkdocs.yml
-          rm -rf docs/material
-          cp -r mkdocs-material-insiders/material docs/material
-
       - name: Build documentation
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
