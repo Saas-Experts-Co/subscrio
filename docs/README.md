@@ -88,27 +88,11 @@ git push -f git@github.com:Saas-Experts-Co/subscrio.git main:gh-pages
 
 ### Option 3: GitHub Actions (Automated)
 
-You can set up a GitHub Actions workflow to automatically deploy on push to the main branch. Create `.github/workflows/deploy.yml`:
+The repository includes a workflow that automatically builds and deploys the docs when you push to `main` (when files under `docs/` change). The workflow is at `.github/workflows/deploy-docs.yml`.
 
-```yaml
-name: Deploy to GitHub Pages
+It installs dependencies from `docs/requirements.txt`, runs `mkdocs build` from the `docs/` directory, copies `docs/CNAME` for the custom domain, and deploys the built site to the `gh-pages` branch using [peaceiris/actions-gh-pages](https://github.com/peaceiris/actions-gh-pages).
 
-on:
-  push:
-    branches:
-      - main
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
-      - run: pip install -r requirements.txt
-      - run: python -m mkdocs gh-deploy --force
-```
+Ensure **Settings → Pages** is set to serve from the `gh-pages` branch. Optional: set the `GOOGLE_ANALYTICS_KEY` repository variable if you use analytics.
 
 ## Custom Domain
 

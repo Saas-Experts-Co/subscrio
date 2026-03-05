@@ -1,0 +1,54 @@
+# Build and deploy Subscrio documentation to GitHub Pages (docs.subscrio.com).
+# Runs on push to main when files under docs/ change.
+name: Deploy documentation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - '.github/workflows/deploy-docs.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-docs
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r docs/requirements.txt
+
+      - name: Build MkDocs site
+        working-directory: docs
+        env:
+          GOOGLE_ANALYTICS_KEY: ${{ vars.GOOGLE_ANALYTICS_KEY || '' }}
+        run: python -m mkdocs build --strict
+
+      - name: Copy CNAME for custom domain
+        run: |
+          if [ -f docs/CNAME ]; then
+            cp docs/CNAME docs/site/
+          fi
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/site
+          force_orphan: true
