@@ -43,6 +43,7 @@ Complete documentation of all data structures and methods exposed by Subscrio Co
     | `migrate` | Runs pending database migrations to update the schema to the latest version | `Promise<number>` |
     | `verifySchema` | Confirms whether the Subscrio schema is already installed and returns the current schema version | `Promise<string \| null>` |
     | `dropSchema` | Removes every table created by Subscrio (for local development resets or automated tests) | `Promise<void>` |
+    | `runInitialConfigSync` | If `initialConfig` was passed to the constructor, runs config sync (file or JSON) and returns the report; otherwise returns `null` | `Promise<ConfigSyncReport \| null>` |
     | `close` | Closes the database connection pool | `Promise<void>` |
 
 === ".NET"
@@ -52,6 +53,7 @@ Complete documentation of all data structures and methods exposed by Subscrio Co
     | `MigrateAsync` | Runs pending database migrations to update the schema to the latest version | `Task<int>` |
     | `VerifySchemaAsync` | Confirms whether the Subscrio schema is already installed and returns the current schema version | `Task<string?>` |
     | `DropSchemaAsync` | Removes every table created by Subscrio (for local development resets or automated tests) | `Task` |
+    | `RunInitialConfigSyncAsync` | If `InitialConfig` was passed to the constructor, runs config sync (file or JSON) and returns the report; otherwise returns `null` | `Task<ConfigSyncReport?>` |
     | `Dispose` | Closes the database connection pool | `void` |
 
 ## Method Reference
@@ -147,6 +149,7 @@ Complete documentation of all data structures and methods exposed by Subscrio Co
       adminPassphrase?: string;
       stripe?: { secretKey: string };
       logging?: { level: 'debug' | 'info' | 'warn' | 'error' };
+      initialConfig?: InitialConfigSync;  // { type: 'file', filePath: string } | { type: 'json', config: ConfigSyncDto }
     }
     ```
 
@@ -160,6 +163,7 @@ Complete documentation of all data structures and methods exposed by Subscrio Co
         public string? AdminPassphrase { get; init; }
         public StripeConfig? Stripe { get; init; }
         public LoggingConfig? Logging { get; init; }
+        public InitialConfigOptions? InitialConfig { get; init; }  // FilePath and/or Config for config sync
     }
 
     public class DatabaseConfig
@@ -189,6 +193,10 @@ Complete documentation of all data structures and methods exposed by Subscrio Co
 ##### `adminPassphrase`
 
 Optional override for the admin passphrase hash stored during `installSchema()` / `InstallSchemaAsync()`. If omitted you can pass the passphrase directly to the install method.
+
+##### `initialConfig` / `InitialConfig`
+
+Optional config sync input (same as used by [ConfigSyncService](config-sync.md)): a file path or a `ConfigSyncDto` object. If set, call `runInitialConfigSync()` / `RunInitialConfigSyncAsync()` after construction (e.g. after installing or verifying the schema) to apply the configuration. When provided, that method runs the sync and returns the report; when omitted, it returns `null`.
 
 ##### `stripe` object
 

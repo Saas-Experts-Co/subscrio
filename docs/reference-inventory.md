@@ -194,7 +194,8 @@ Source of truth for documentation verification. Extracted from local `core.types
 | 2 | `verifySchema()` | `VerifySchemaAsync()` | — | string \| null |
 | 3 | `migrate()` | `MigrateAsync()` | — | number |
 | 4 | `dropSchema()` | `DropSchemaAsync()` | — | void |
-| 5 | `close()` | `Dispose()` | — | void |
+| 5 | `runInitialConfigSync()` | `RunInitialConfigSyncAsync()` | — | ConfigSyncReport \| null |
+| 6 | `close()` | `Dispose()` | — | void |
 
 ---
 

@@ -79,6 +79,22 @@ const config: ConfigSyncDto = {
 const report = await subscrio.configSync.syncFromJson(config);
 ```
 
+### Option 3: Initial config at construction
+
+You can pass the same config sync input to the Subscrio constructor via `initialConfig`. After construction, call `runInitialConfigSync()` to apply it (e.g. after installing or verifying the schema).
+
+```typescript
+import { Subscrio } from '@subscrio/core';
+
+const subscrio = new Subscrio({
+  database: { connectionString: process.env.DATABASE_URL! },
+  initialConfig: { type: 'file', filePath: './config.json' }
+  // or: initialConfig: { type: 'json', config: myConfigSyncDto }
+});
+await subscrio.installSchema();
+const report = await subscrio.runInitialConfigSync(); // applies initial config, or null if none
+```
+
 ## JSON Schema
 
 ### Root Configuration

@@ -22,8 +22,9 @@ const subscrio = new Subscrio({
 | --- | --- | --- |
 | `installSchema` | Creates every Subscrio database table, seeds configuration rows, and optionally writes the admin passphrase hash | `Promise<void>` |
 | `migrate` | Runs pending database migrations to update the schema to the latest version | `Promise<number>` |
-| `verifySchema` | Confirms whether the Subscrio schema is already installed and returns the current schema version | `Promise<string | null>` |
+| `verifySchema` | Confirms whether the Subscrio schema is already installed and returns the current schema version | `Promise<string \| null>` |
 | `dropSchema` | Removes every table created by Subscrio (for local development resets or automated tests) | `Promise<void>` |
+| `runInitialConfigSync` | If `initialConfig` was passed to the constructor, runs config sync (file or JSON) and returns the report; otherwise returns `null` | `Promise<ConfigSyncReport \| null>` |
 | `close` | Closes the shared Drizzle/pg connection pool so Node processes can exit cleanly | `Promise<void>` |
 
 ## Method Reference
@@ -96,6 +97,8 @@ export interface SubscrioConfig {
   logging?: {
     level: 'debug' | 'info' | 'warn' | 'error';
   };
+  /** If set, call runInitialConfigSync() after construction to sync from file or JSON. */
+  initialConfig?: InitialConfigSync;  // { type: 'file', filePath: string } | { type: 'json', config: ConfigSyncDto }
 }
 ```
 

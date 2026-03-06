@@ -150,6 +150,38 @@ The sync service:
     var report = await subscrio.ConfigSync.SyncFromJsonAsync(config);
     ```
 
+### Option 3: Initial config at construction
+
+You can pass the same config sync input to the Subscrio constructor via `initialConfig` (TypeScript) or `InitialConfig` (.NET). After construction, call `runInitialConfigSync()` / `RunInitialConfigSyncAsync()` to apply it (e.g. after installing or verifying the schema).
+
+=== "TypeScript"
+    ```typescript
+    import { Subscrio } from 'core.typescript';
+
+    const subscrio = new Subscrio({
+      database: { connectionString: process.env.DATABASE_URL! },
+      initialConfig: { type: 'file', filePath: './config.json' }
+      // or: initialConfig: { type: 'json', config: myConfigSyncDto }
+    });
+    await subscrio.installSchema();
+    const report = await subscrio.runInitialConfigSync(); // applies initial config, or null if none
+    ```
+
+=== ".NET"
+    ```csharp
+    using Subscrio.Core;
+    using Subscrio.Core.Config;
+
+    var subscrio = new Subscrio(new SubscrioConfig
+    {
+        Database = new DatabaseConfig { ConnectionString = "..." },
+        InitialConfig = new InitialConfigOptions { FilePath = "./config.json" }
+        // or: InitialConfig = new InitialConfigOptions { Config = myConfigSyncDto }
+    });
+    await subscrio.InstallSchemaAsync();
+    var report = await subscrio.RunInitialConfigSyncAsync(); // applies initial config, or null if none
+    ```
+
 ## JSON Schema
 
 ### Root Configuration
