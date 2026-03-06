@@ -1,4 +1,5 @@
 using Npgsql;
+using Subscrio.Core.Application.DTOs;
 using Subscrio.Core.Application.Repositories;
 using Subscrio.Core.Application.Services;
 using Subscrio.Core.Application.Validators;
@@ -124,6 +125,24 @@ public class Subscrio : IDisposable
             Plans,
             BillingCycles
         );
+        _initialConfig = config.InitialConfig;
+    }
+
+    private readonly InitialConfigOptions? _initialConfig;
+
+    /// <summary>
+    /// Run initial config sync if InitialConfig was provided to the constructor.
+    /// Call this after construction (e.g. after InstallSchemaAsync/VerifySchemaAsync) to apply the config.
+    /// </summary>
+    /// <returns>The sync report, or null if no InitialConfig was set</returns>
+    public async Task<ConfigSyncReport?> RunInitialConfigSyncAsync()
+    {
+        if (_initialConfig == null) return null;
+        if (!string.IsNullOrWhiteSpace(_initialConfig.FilePath))
+            return await ConfigSync.SyncFromFileAsync(_initialConfig.FilePath);
+        if (_initialConfig.Config != null)
+            return await ConfigSync.SyncFromJsonAsync(_initialConfig.Config);
+        return null;
     }
 
     /// <summary>

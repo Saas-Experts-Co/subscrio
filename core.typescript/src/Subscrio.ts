@@ -1,4 +1,5 @@
-import { SubscrioConfig } from './config/types.js';
+import type { SubscrioConfig, InitialConfigSync } from './config/types.js';
+import type { ConfigSyncReport } from './application/dtos/ConfigSyncDto.js';
 import { initializeDatabase, DrizzleDb, closeDatabase } from './infrastructure/database/drizzle.js';
 import { SchemaInstaller } from './infrastructure/database/installer.js';
 
@@ -38,7 +39,8 @@ import { ConfigSyncService } from './application/services/ConfigSyncService.js';
 export class Subscrio {
   private readonly db: DrizzleDb;
   private readonly installer: SchemaInstaller;
-  
+  private readonly _initialConfig?: InitialConfigSync;
+
   // Repositories (private)
   private readonly productRepo: IProductRepository;
   private readonly featureRepo: IFeatureRepository;
@@ -112,6 +114,20 @@ export class Subscrio {
       config  // Pass config for Stripe secret key access
     );
     this.configSync = new ConfigSyncService(this);
+    this._initialConfig = config.initialConfig;
+  }
+
+  /**
+   * Run initial config sync if initialConfig was provided to the constructor.
+   * Call this after construction (e.g. after installSchema/verifySchema) to apply the config.
+   * @returns The sync report, or null if no initialConfig was set
+   */
+  async runInitialConfigSync(): Promise<ConfigSyncReport | null> {
+    if (!this._initialConfig) return null;
+    if (this._initialConfig.type === 'file') {
+      return await this.configSync.syncFromFile(this._initialConfig.filePath);
+    }
+    return await this.configSync.syncFromJson(this._initialConfig.config);
   }
 
   /**

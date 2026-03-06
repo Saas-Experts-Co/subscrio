@@ -2,7 +2,7 @@
 export { Subscrio } from './Subscrio.js';
 
 // Configuration
-export type { SubscrioConfig } from './config/types.js';
+export type { SubscrioConfig, InitialConfigSync } from './config/types.js';
 export { loadConfig } from './config/loader.js';
 
 // DTOs
