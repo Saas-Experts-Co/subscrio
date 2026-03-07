@@ -10,7 +10,7 @@
 
   <PropertyGroup>
     <PackageId>Subscrio.Core</PackageId>
-    <Version>1.0.1</Version>
+    <Version>1.0.3</Version>
     <Authors>Saas Experts Co</Authors>
     <Description>Subscription and entitlement engine for .NET. Products, plans, features, customers, subscriptions, and feature resolution with PostgreSQL or SQL Server.</Description>
     <PackageTags>subscrio;subscription;entitlement;saas;efcore;postgresql;sqlserver</PackageTags>
